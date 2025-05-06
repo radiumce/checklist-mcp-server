@@ -7,7 +7,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "dev": "ts-node src/server.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "npm run build && ts-node test/run_tests.ts"
   },
   "keywords": [
     "mcp",
@@ -17,10 +17,11 @@
   "license": "ISC",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.11.0",
+    "pino": "^9.6.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/node": "^20.12.12",
+    "@types/node": "^20.17.41",
     "ts-node": "^10.9.2",
     "typescript": "^5.4.5"
   }

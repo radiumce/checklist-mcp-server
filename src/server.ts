@@ -2,6 +2,10 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import crypto from 'crypto'; // Import crypto for UUID generation
+import pino from 'pino'; // Import pino
+
+// Configure pino logger to write to stderr
+const logger = pino({ level: 'info' }, pino.destination(2)); // 2 is stderr file descriptor
 
 // Define the Task structure
 interface Task {
@@ -41,12 +45,15 @@ async function main() {
   server.tool("save_tasks", 
     "Saves or replaces a list of tasks for a given session. Tasks are initialized with 'TODO' status. If 'sessionId' is omitted or empty, a new session is created and its ID is returned. Otherwise, the tasks for the existing session are overwritten.",
      saveTasksInputSchema.shape, async ({ sessionId: inputSessionId, tasks }: SaveTasksInput) => {
+    // Log entry with request details
+    logger.info({ tool: 'save_tasks', params: { inputSessionId, taskCount: tasks.length } }, 'Received save_tasks request');
     let usedSessionId = inputSessionId;
     
     // If sessionId is empty or not provided, generate a new one
     if (!usedSessionId) {
       usedSessionId = crypto.randomUUID();
-      console.log(`[New Session] Generated new sessionId: ${usedSessionId}`);
+      // Log new session creation
+      logger.info({ sessionId: usedSessionId }, 'Generated new session ID');
     }
 
     // Explicitly type 'task' in map function
@@ -56,7 +63,8 @@ async function main() {
     }));
     
     taskStore.set(usedSessionId, tasksWithStatus);
-    console.log(`[${usedSessionId}] Saved ${tasksWithStatus.length} tasks.`);
+    // Log successful save
+    logger.info({ sessionId: usedSessionId, savedCount: tasksWithStatus.length }, 'Saved tasks successfully');
     return {
       // Return the used sessionId in the response
       content: [{ type: "text", text: `Successfully saved ${tasksWithStatus.length} tasks for session ${usedSessionId}.` }]
@@ -75,8 +83,12 @@ async function main() {
   server.tool("check_task", 
     "Marks a specific task as 'DONE' within a session. Requires the 'sessionId' and the 'taskId' of the task to be marked. Returns the full updated list of tasks for the session.", 
     checkTaskInputSchema.shape, async ({ sessionId, taskId }: CheckTaskInput) => {
+    // Log entry with request details
+    logger.info({ tool: 'check_task', params: { sessionId, taskId } }, 'Received check_task request');
     const sessionTasks = taskStore.get(sessionId);
     if (!sessionTasks) {
+      // Log invalid sessionId error
+      logger.error({ sessionId }, 'Invalid sessionId for check_task');
       return {
         content: [{ type: "text", text: `Error: No tasks found for session ${sessionId}.` }]
       };
@@ -84,12 +96,16 @@ async function main() {
 
     const taskIndex = sessionTasks.findIndex(task => task.id === taskId);
     if (taskIndex === -1) {
+        // Log invalid taskId error
+        logger.error({ sessionId, taskId }, 'Invalid taskId for check_task');
         return {
             content: [{ type: "text", text: `Error: Task with ID ${taskId} not found in session ${sessionId}.` }]
         };
     }
     
     if (sessionTasks[taskIndex].status === 'DONE') {
+         // Log task already marked as DONE
+         logger.warn({ sessionId, taskId }, 'Task already marked as DONE');
          return {
             content: [{ type: "text", text: `Task ${taskId} in session ${sessionId} is already marked as DONE.` }]
         };
@@ -97,7 +113,8 @@ async function main() {
 
     sessionTasks[taskIndex].status = 'DONE';
     taskStore.set(sessionId, sessionTasks); // Update the store
-    console.log(`[${sessionId}] Marked task ${taskId} as DONE.`);
+    // Log successful marking
+    logger.info({ sessionId, taskId }, 'Marked task as DONE');
 
     // Format the updated task list for the response
     const updatedTaskListText = sessionTasks.map(task => 
@@ -123,8 +140,12 @@ async function main() {
   server.tool("get_all_tasks", 
     "Retrieves the complete list of tasks and their current status ('TODO' or 'DONE') for the specified 'sessionId'.", 
     getAllTasksInputSchema.shape, async ({ sessionId }: GetAllTasksInput) => {
+    // Log entry with request details
+    logger.info({ tool: 'get_all_tasks', params: { sessionId } }, 'Received get_all_tasks request');
     const sessionTasks = taskStore.get(sessionId);
     if (!sessionTasks || sessionTasks.length === 0) {
+      // Log no tasks found or invalid sessionId
+      logger.warn({ sessionId }, 'No tasks found or invalid sessionId for get_all_tasks');
       return {
         content: [{ type: "text", text: `No tasks found for session ${sessionId}.` }]
       };
@@ -135,7 +156,8 @@ async function main() {
         `- [${task.status === 'DONE' ? 'x' : ' '}] ${task.id}: ${task.name} (${task.description})`
     ).join('\n');
 
-    console.log(`[${sessionId}] Retrieved ${sessionTasks.length} tasks.`);
+    // Log successful retrieval
+    logger.info({ sessionId, retrievedCount: sessionTasks.length }, 'Retrieved tasks successfully');
     return {
       content: [
         { type: "text", text: `Tasks for session ${sessionId}:\n${taskListText}` }
@@ -149,13 +171,12 @@ async function main() {
   const transport = new StdioServerTransport();
 
   // Connect the server to the transport and start listening
-  console.log("Checklist MCP Server starting in stdio mode...");
+  logger.info('Checklist MCP Server starting in stdio mode...');
   await server.connect(transport);
-  // 移除此处的 "stopped" 消息，因为服务器应该持续运行
 }
 
 main().catch(err => {
-  console.error("Server encountered an error:", err);
-  console.log("Checklist MCP Server stopped due to an error.");
+  // Log fatal errors before exiting
+  logger.fatal({ err }, 'Checklist MCP Server stopped due to an unhandled error');
   process.exit(1);
 });
