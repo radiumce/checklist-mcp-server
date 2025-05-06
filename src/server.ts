@@ -71,24 +71,24 @@ async function main() {
     };
   });
 
-  // 2. check_task tool
-  const checkTaskInputSchema = z.object({
+  // 2. mark_task_as_done tool
+  const markTaskAsDoneInputSchema = z.object({
       sessionId: z.string().min(1, "sessionId cannot be empty"),
       taskId: z.string().min(1, "taskId cannot be empty")
   });
 
   // Define the type inferred from the schema
-  type CheckTaskInput = z.infer<typeof checkTaskInputSchema>;
+  type MarkTaskAsDoneInput = z.infer<typeof markTaskAsDoneInputSchema>;
 
-  server.tool("check_task", 
+  server.tool("mark_task_as_done", 
     "Marks a specific task as 'DONE' within a session. Requires the 'sessionId' and the 'taskId' of the task to be marked. Returns the full updated list of tasks for the session.", 
-    checkTaskInputSchema.shape, async ({ sessionId, taskId }: CheckTaskInput) => {
+    markTaskAsDoneInputSchema.shape, async ({ sessionId, taskId }: MarkTaskAsDoneInput) => {
     // Log entry with request details
-    logger.info({ tool: 'check_task', params: { sessionId, taskId } }, 'Received check_task request');
+    logger.info({ tool: 'mark_task_as_done', params: { sessionId, taskId } }, 'Received mark_task_as_done request');
     const sessionTasks = taskStore.get(sessionId);
     if (!sessionTasks) {
       // Log invalid sessionId error
-      logger.error({ sessionId }, 'Invalid sessionId for check_task');
+      logger.error({ sessionId }, 'Invalid sessionId for mark_task_as_done');
       return {
         content: [{ type: "text", text: `Error: No tasks found for session ${sessionId}.` }]
       };
@@ -97,7 +97,7 @@ async function main() {
     const taskIndex = sessionTasks.findIndex(task => task.id === taskId);
     if (taskIndex === -1) {
         // Log invalid taskId error
-        logger.error({ sessionId, taskId }, 'Invalid taskId for check_task');
+        logger.error({ sessionId, taskId }, 'Invalid taskId for mark_task_as_done');
         return {
             content: [{ type: "text", text: `Error: Task with ID ${taskId} not found in session ${sessionId}.` }]
         };

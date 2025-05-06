@@ -84,4 +84,4 @@ This command first builds the project and then executes the tests defined in `te
 
 *   `save_tasks`: Saves or replaces a list of tasks for a session. Creates a new session if no ID is provided.
 *   `get_all_tasks`: Retrieves all tasks for a given session ID.
-*   `check_task`: Marks a specific task as DONE within a session.
+*   `mark_task_as_done`: Marks a specific task as DONE within a session.

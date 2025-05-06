@@ -21,7 +21,7 @@ interface SaveTasksInputParams {
   tasks: TaskInput[];
 }
 
-interface CheckTaskInputParams {
+interface MarkTaskAsDoneInputParams {
   sessionId: string;
   taskId: string;
 }
@@ -106,15 +106,15 @@ async function runTests() {
         assert(getTasksText1.includes("- [ ] 2: Task 2 (Second thing to do)"), "Task 2 format/status incorrect");
         console.log("'get_all_tasks' (initial) test PASSED.");
 
-        // 5. Test 'check_task'
-        console.log("Testing 'check_task'...");
+        // 5. Test 'mark_task_as_done'
+        console.log("Testing 'mark_task_as_done'...");
         assert(sessionId, "Session ID must be set before checking task");
-        const checkParams: CheckTaskInputParams = { sessionId, taskId: "1" };
-        const checkResult = await client.callTool({ name: 'check_task', arguments: checkParams as unknown as { [x: string]: unknown } }); // Mark Task 1 (ID '1') as DONE
+        const markParams: MarkTaskAsDoneInputParams = { sessionId, taskId: "1" };
+        const checkResult = await client.callTool({ name: 'mark_task_as_done', arguments: markParams as unknown as { [x: string]: unknown } }); // Mark Task 1 (ID '1') as DONE
         const checkTaskText = (checkResult as ToolSuccessResponse).content[0].text;
-        console.log(`check_task response:\n${checkTaskText}`);
-        assert(checkTaskText.includes(`Successfully marked task ${checkParams.taskId} as DONE`), "Check task confirmation message mismatch");
-        console.log("'check_task' test PASSED.");
+        console.log(`mark_task_as_done response: ${checkTaskText}`);
+        assert(checkTaskText.includes(`Successfully marked task ${markParams.taskId} as DONE`), "Mark task as done confirmation message mismatch");
+        console.log("'mark_task_as_done' test PASSED.");
 
         // 6. Test 'get_all_tasks' again after check
         console.log("Testing 'get_all_tasks' (after check)...");
@@ -137,16 +137,16 @@ async function runTests() {
         assert(getInvalidText.includes(`No tasks found for session ${invalidSessionId}`), "Expected error message for invalid session ID");
         console.log("'get_all_tasks' (invalid session) test PASSED.");
 
-        // 8. Test invalid task ID for check_task
-        console.log("Testing 'check_task' (invalid task ID)...");
+        // 8. Test invalid task ID for mark_task_as_done
+        console.log("Testing 'mark_task_as_done' (invalid task ID)...");
         assert(sessionId, "Session ID must be set before checking invalid task");
         const invalidTaskId = "999";
-        const checkInvalidParams: CheckTaskInputParams = { sessionId, taskId: invalidTaskId };
-        const checkInvalidResult = await client.callTool({ name: 'check_task', arguments: checkInvalidParams as unknown as { [x: string]: unknown } });
-        const checkInvalidText = (checkInvalidResult as ToolSuccessResponse).content[0].text;
-        console.log(`check_task (invalid task) response: ${checkInvalidText}`);
-        assert(checkInvalidText.includes(`Error: Task with ID ${invalidTaskId} not found`), "Expected error message for invalid task ID");
-        console.log("'check_task' (invalid task ID) test PASSED.");
+        const markInvalidParams: MarkTaskAsDoneInputParams = { sessionId, taskId: invalidTaskId };
+        const markInvalidResult = await client.callTool({ name: 'mark_task_as_done', arguments: markInvalidParams as unknown as { [x: string]: unknown } });
+        const markInvalidText = (markInvalidResult as ToolSuccessResponse).content[0].text;
+        console.log(`mark_task_as_done (invalid task) response: ${markInvalidText}`);
+        assert(markInvalidText.includes(`Error: Task with ID ${invalidTaskId} not found`), "Expected error message for invalid task ID");
+        console.log("'mark_task_as_done' (invalid task ID) test PASSED.");
 
         console.log('--- All tests PASSED ---');
 
