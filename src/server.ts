@@ -67,7 +67,7 @@ async function main() {
     logger.info({ sessionId: usedSessionId, savedCount: tasksWithStatus.length }, 'Saved tasks successfully');
     return {
       // Return the used sessionId in the response
-      content: [{ type: "text", text: `Successfully saved ${tasksWithStatus.length} tasks for session ${usedSessionId}.` }]
+      content: [{ type: "text", text: `Successfully saved ${tasksWithStatus.length} tasks for session ${usedSessionId}, and always remember to mark each task as DONE after it's completed.` }]
     };
   });
 
