@@ -1,10 +1,10 @@
 {
   "name": "checklist-mcp-server",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "An MCP server to manage checklists.",
   "main": "dist/server.js",
   "bin": {
-    "checklist-mcp-server": "./dist/server.js"
+    "checklist-mcp-server": "dist/server.js"
   },
   "scripts": {
     "build": "tsc",
