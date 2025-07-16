@@ -10,7 +10,9 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "dev": "ts-node src/server.ts",
-    "test": "npm run build && ts-node test/run_tests.ts"
+    "test": "npm run build && npx ts-node test/all-tests.ts",
+    "test:core": "npx ts-node test/core-functionality.test.ts",
+    "test:integration": "npm run build && npx ts-node test/run_tests.ts"
   },
   "keywords": [
     "mcp",

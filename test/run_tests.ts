@@ -11,13 +11,15 @@ const serverArgs = [serverScriptPath];
 
 // Interfaces based on server Zod schemas
 interface TaskInput {
-  id: string;
-  name: string;
+  taskId: string;
   description: string;
+  status?: 'TODO' | 'DONE';
+  children?: TaskInput[];
 }
 
-interface SaveTasksInputParams {
-  sessionId?: string; // Optional session ID for saving
+interface UpdateTasksInputParams {
+  sessionId: string;
+  path?: string; // Optional path, defaults to "/"
   tasks: TaskInput[];
 }
 
@@ -72,26 +74,25 @@ async function runTests() {
         await client.connect(transport);
         console.log('Connected successfully.');
 
-        // 3. Test 'save_tasks' (create new session)
-        console.log("Testing 'save_tasks' (new session)...");
+        // 3. Test 'update_tasks' (create new session)
+        console.log("Testing 'update_tasks' (new session)...");
+        sessionId = "test-session-123"; // Use a fixed session ID for testing
         const initialTasks: TaskInput[] = [
-            { id: "1", name: "Task 1", description: "First thing to do" },
-            { id: "2", name: "Task 2", description: "Second thing to do" },
+            { taskId: "task1", description: "First thing to do" },
+            { taskId: "task2", description: "Second thing to do" },
         ];
-        const saveParams: SaveTasksInputParams = { tasks: initialTasks };
-        const saveResult = await client.callTool({ name: 'save_tasks', arguments: saveParams as unknown as { [x: string]: unknown } });
+        const updateParams: UpdateTasksInputParams = { 
+            sessionId, 
+            path: "/", 
+            tasks: initialTasks 
+        };
+        const updateResult = await client.callTool({ name: 'update_tasks', arguments: updateParams as unknown as { [x: string]: unknown } });
 
-        // Basic check - Ideally, the server tool should return the sessionId
-        // For now, we assume the text contains it or we need to modify the server tool.
-        // Extract session ID - VERY brittle, depends on exact server output format.
-        const saveResultText = (saveResult as ToolSuccessResponse).content[0].text;
-        console.log(`save_tasks response: ${saveResultText}`);
-        const sessionMatch = saveResultText.match(/session ([a-f0-9\-]+)/);
-        assert(sessionMatch && sessionMatch[1], "Could not extract session ID from save_tasks response");
-        sessionId = sessionMatch[1];
-        console.log(`Session ID created: ${sessionId}`);
-        assert(saveResultText.includes(`Successfully saved ${initialTasks.length} tasks`), "Save task response message mismatch");
-        console.log("'save_tasks' (new session) test PASSED.");
+        const updateResultText = (updateResult as ToolSuccessResponse).content[0].text;
+        console.log(`update_tasks response: ${updateResultText}`);
+        assert(updateResultText.includes(`Successfully updated ${initialTasks.length} tasks`), "Update task response message mismatch");
+        assert(updateResultText.includes(`session ${sessionId}`), "Session ID not found in response");
+        console.log("'update_tasks' (new session) test PASSED.");
 
         // 4. Test 'get_all_tasks'
         console.log("Testing 'get_all_tasks'...");
@@ -100,17 +101,17 @@ async function runTests() {
         const getResult1 = await client.callTool({ name: 'get_all_tasks', arguments: getParams1 as unknown as { [x: string]: unknown } });
         const getTasksText1 = (getResult1 as ToolSuccessResponse).content[0].text;
         console.log(`get_all_tasks response:\n${getTasksText1}`);
-        assert(getTasksText1.includes("Task 1"), "Task 1 not found in initial get_all_tasks");
-        assert(getTasksText1.includes("Task 2"), "Task 2 not found in initial get_all_tasks");
-        assert(getTasksText1.includes("- [ ] 1: Task 1 (First thing to do)"), "Task 1 format/status incorrect");
-        assert(getTasksText1.includes("- [ ] 2: Task 2 (Second thing to do)"), "Task 2 format/status incorrect");
+        assert(getTasksText1.includes("task1"), "task1 not found in initial get_all_tasks");
+        assert(getTasksText1.includes("task2"), "task2 not found in initial get_all_tasks");
+        assert(getTasksText1.includes("○ task1: First thing to do"), "task1 format/status incorrect");
+        assert(getTasksText1.includes("○ task2: Second thing to do"), "task2 format/status incorrect");
         console.log("'get_all_tasks' (initial) test PASSED.");
 
         // 5. Test 'mark_task_as_done'
         console.log("Testing 'mark_task_as_done'...");
         assert(sessionId, "Session ID must be set before checking task");
-        const markParams: MarkTaskAsDoneInputParams = { sessionId, taskId: "1" };
-        const checkResult = await client.callTool({ name: 'mark_task_as_done', arguments: markParams as unknown as { [x: string]: unknown } }); // Mark Task 1 (ID '1') as DONE
+        const markParams: MarkTaskAsDoneInputParams = { sessionId, taskId: "task1" };
+        const checkResult = await client.callTool({ name: 'mark_task_as_done', arguments: markParams as unknown as { [x: string]: unknown } }); // Mark task1 as DONE
         const checkTaskText = (checkResult as ToolSuccessResponse).content[0].text;
         console.log(`mark_task_as_done response: ${checkTaskText}`);
         assert(checkTaskText.includes(`Successfully marked task ${markParams.taskId} as DONE`), "Mark task as done confirmation message mismatch");
@@ -123,8 +124,8 @@ async function runTests() {
         const getResult2 = await client.callTool({ name: 'get_all_tasks', arguments: getParams2 as unknown as { [x: string]: unknown } });
         const getTasksText2 = (getResult2 as ToolSuccessResponse).content[0].text;
         console.log(`get_all_tasks response:\n${getTasksText2}`);
-        assert(getTasksText2.includes("- [x] 1: Task 1 (First thing to do)"), "Task 1 should be DONE in final get_all_tasks");
-        assert(getTasksText2.includes("- [ ] 2: Task 2 (Second thing to do)"), "Task 2 should still be TODO in final get_all_tasks");
+        assert(getTasksText2.includes("✓ task1: First thing to do"), "task1 should be DONE in final get_all_tasks");
+        assert(getTasksText2.includes("○ task2: Second thing to do"), "task2 should still be TODO in final get_all_tasks");
         console.log("'get_all_tasks' (after check) test PASSED.");
 
         // 7. Test invalid session ID for get_all_tasks
@@ -145,7 +146,7 @@ async function runTests() {
         const markInvalidResult = await client.callTool({ name: 'mark_task_as_done', arguments: markInvalidParams as unknown as { [x: string]: unknown } });
         const markInvalidText = (markInvalidResult as ToolSuccessResponse).content[0].text;
         console.log(`mark_task_as_done (invalid task) response: ${markInvalidText}`);
-        assert(markInvalidText.includes(`Error: Task with ID ${invalidTaskId} not found`), "Expected error message for invalid task ID");
+        assert(markInvalidText.includes(`Error: Task ID '${invalidTaskId}' has invalid format`), "Expected error message for invalid task ID format");
         console.log("'mark_task_as_done' (invalid task ID) test PASSED.");
 
         console.log('--- All tests PASSED ---');
