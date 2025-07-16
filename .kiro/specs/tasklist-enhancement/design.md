@@ -12,7 +12,7 @@ The existing flat Task interface will be replaced with a hierarchical structure:
 
 ```typescript
 interface Task {
-  taskId: string;      // 3-8 character alphanumeric (e.g., "auth1", "ui2", "step")
+  taskId: string;      // 1-20 character identifier (e.g., "auth1", "ui2", "step", "123", "v1.0", "user@task")
   description: string; // Combined name + description from original
   status: 'TODO' | 'DONE';
   children?: Task[];   // Optional subtasks array

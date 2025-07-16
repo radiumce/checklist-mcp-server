@@ -320,7 +320,7 @@ class FinalValidationTest {
     await this.callTool('update_tasks', { sessionId, path: '/', tasks: [tasks] });
 
     // Test with invalid task IDs
-    const invalidTaskIds = ['', '   ', 'nonexistent', '123', 'ab', 'toolongid123'];
+    const invalidTaskIds = ['', '   ', 'nonexistent', 'task/invalid', 'task\\invalid', 'a'.repeat(21)];
     
     for (const invalidTaskId of invalidTaskIds) {
       try {

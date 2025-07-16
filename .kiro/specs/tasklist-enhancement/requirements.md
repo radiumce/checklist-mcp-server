@@ -34,8 +34,8 @@ This enhancement adds hierarchical task management capabilities to the existing 
 
 #### Acceptance Criteria
 
-1. WHEN generating task IDs THEN the system SHALL use 3-8 character alphanumeric combinations
-2. WHEN generating task IDs THEN the system SHALL avoid pure numeric sequences
+1. WHEN generating task IDs THEN the system SHALL use 1-20 character combinations allowing letters, numbers, and symbols (excluding / \ : * ? " < > | and spaces)
+2. WHEN generating task IDs THEN the system SHALL allow pure numeric sequences and symbol-only sequences
 3. WHEN generating task IDs THEN the system SHALL ensure uniqueness within the session
 4. WHEN preserving tasks during updates THEN the system SHALL maintain existing task IDs
 

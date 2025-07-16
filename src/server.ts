@@ -10,7 +10,7 @@ const logger = pino({ level: 'info' }, pino.destination(2)); // 2 is stderr file
 
 // Define the hierarchical Task structure
 interface Task {
-  taskId: string;      // 3-8 character alphanumeric (e.g., "auth1", "ui2", "step")
+  taskId: string;     
   description: string; // Combined name + description from original
   status: 'TODO' | 'DONE';
   children?: Task[];   // Optional subtasks array
@@ -109,7 +109,7 @@ function validatePath(path: string): { isValid: boolean; normalizedPath?: string
       logger.error({ path, invalidSegment: segment }, 'Invalid path segment: does not match task ID format');
       return { 
         isValid: false, 
-        error: `Invalid path segment '${segment}': must be a valid task ID (3-8 alphanumeric characters with at least one letter)` 
+        error: `Invalid path segment '${segment}': must be a valid task ID (1-20 characters, letters/numbers/symbols allowed, excluding / \\ : * ? " < > |)` 
       };
     }
   }
@@ -154,7 +154,7 @@ function validateTaskData(task: any, context: string = ''): { isValid: boolean; 
     logger.error({ task, context }, error);
     errors.push(error);
   } else if (!validateTaskId(task.taskId)) {
-    const error = `${contextPrefix}Task 'taskId' format is invalid: '${task.taskId}' (must be 3-8 alphanumeric characters with at least one letter)`;
+    const error = `${contextPrefix}Task 'taskId' format is invalid: '${task.taskId}' (must be 1-20 characters, letters/numbers/symbols allowed, excluding / \\ : * ? " < > |)`;
     logger.error({ task, context }, error);
     errors.push(error);
   }
@@ -599,14 +599,28 @@ async function main() {
 
   // 1. update_tasks tool
   const updateTasksInputSchema = z.object({
-    sessionId: z.string().min(1, "sessionId cannot be empty"),
-    path: z.string().default("/"), // Default to root path
+    sessionId: z.string()
+      .min(1, "sessionId cannot be empty")
+      .describe("Unique identifier for the task session. Must be 1-100 characters, alphanumeric with hyphens/underscores allowed."),
+    path: z.string()
+      .default("/")
+      .describe("Hierarchical path specifying where to update tasks. Examples: '/' (root level), '/auth1/' (children of task auth1), '/auth1/api2/' (children of task api2 under auth1). Path segments must be valid task IDs. Use '/' to replace entire task list, '/taskId/' to replace children of a specific task."),
     tasks: z.array(z.object({
-        taskId: z.string().min(1, "Task ID cannot be empty"),
-        description: z.string().min(1, "Task description cannot be empty"),
-        status: z.enum(['TODO', 'DONE']).default('TODO'),
-        children: z.array(z.any()).optional() // Recursive Task structure
-    })).min(0, "Tasks array must be valid") // Allow empty arrays for clearing
+        taskId: z.string()
+          .min(1, "Task ID cannot be empty")
+          .describe("Unique 1-20 character identifier for the task (letters, numbers, symbols allowed, excluding / \\ : * ? \" < > |). Examples: 'task-1', 'task-1-1', 'task-1-a', 'task1-a', 'task1-1', 'task-1-a-b', 'user@task-1'"),
+        description: z.string()
+          .min(1, "Task description cannot be empty")
+          .describe("Human-readable description of the task (max 1000 characters)"),
+        status: z.enum(['TODO', 'DONE'])
+          .default('TODO')
+          .describe("Current status of the task. 'TODO' for incomplete, 'DONE' for completed"),
+        children: z.array(z.any())
+          .optional()
+          .describe("Optional array of subtasks with the same structure as parent tasks")
+    }))
+    .min(0, "Tasks array must be valid")
+    .describe("Array of tasks to set at the specified path. Empty array clears tasks at that path.")
   });
 
   // Define the type inferred from the schema
@@ -763,8 +777,12 @@ async function main() {
 
   // 2. mark_task_as_done tool
   const markTaskAsDoneInputSchema = z.object({
-      sessionId: z.string().min(1, "sessionId cannot be empty"),
-      taskId: z.string().min(1, "taskId cannot be empty")
+      sessionId: z.string()
+        .min(1, "sessionId cannot be empty")
+        .describe("Unique identifier for the task session. Must match an existing session."),
+      taskId: z.string()
+        .min(1, "taskId cannot be empty")
+        .describe("The unique identifier of the task to mark as done. Task will be found at any depth in the hierarchy. Examples: 'auth1', 'ui2', 'login'")
   });
 
   // Define the type inferred from the schema
@@ -805,7 +823,7 @@ async function main() {
         return {
           content: [{ 
             type: "text", 
-            text: `Error: Task ID '${taskId}' has invalid format (must be 3-8 alphanumeric characters with at least one letter)` 
+            text: `Error: Task ID '${taskId}' has invalid format (must be 1-20 characters, letters/numbers/symbols allowed, excluding / \\ : * ? " < > |)` 
           }]
         };
       }
@@ -878,7 +896,9 @@ async function main() {
 
   // 3. get_all_tasks tool
   const getAllTasksInputSchema = z.object({
-      sessionId: z.string().min(1, "sessionId cannot be empty")
+      sessionId: z.string()
+        .min(1, "sessionId cannot be empty")
+        .describe("Unique identifier for the task session to retrieve tasks from. Must match an existing session.")
   });
 
   // Define the type inferred from the schema

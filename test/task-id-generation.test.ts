@@ -12,42 +12,28 @@ interface Task {
 }
 
 /**
- * Generates a unique task ID that is 3-8 characters long, alphanumeric, and avoids pure numbers
+ * Generates a unique task ID that is 1-20 characters long, allowing letters, numbers, and symbols
  * @returns A valid task ID string
  */
 function generateTaskId(): string {
-  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  const letters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_@#$%&+=!.';
   
-  let id: string;
-  let attempts = 0;
-  const maxAttempts = 100;
+  // Generate random length between 3-8 characters (keeping reasonable default range for usability)
+  // While the validation allows 1-20 characters, we generate shorter IDs for better user experience
+  const length = Math.floor(Math.random() * 6) + 3; // 3 to 8 characters
+  let id = '';
   
-  do {
-    // Generate random length between 3-8 characters
-    const length = Math.floor(Math.random() * 6) + 3; // 3 to 8 characters
-    id = '';
-    
-    // Ensure at least one letter to avoid pure numbers
-    const letterPosition = Math.floor(Math.random() * length);
-    
-    for (let i = 0; i < length; i++) {
-      if (i === letterPosition) {
-        // Force a letter at this position
-        id += letters.charAt(Math.floor(Math.random() * letters.length));
-      } else {
-        // Any alphanumeric character
-        id += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
-    }
-    
-    attempts++;
-    if (attempts >= maxAttempts) {
-      // Fallback to ensure we don't get stuck in infinite loop
-      id = 'task' + Math.floor(Math.random() * 1000);
-      break;
-    }
-  } while (!validateTaskId(id));
+  for (let i = 0; i < length; i++) {
+    // Any character from the allowed set
+    id += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  
+  // Since our validation is now very permissive, generated IDs should always be valid
+  // But we still validate as a safety check
+  if (!validateTaskId(id)) {
+    // This should rarely happen, but provide a fallback
+    return 'task' + Math.floor(Math.random() * 1000);
+  }
   
   return id;
 }
@@ -58,23 +44,19 @@ function generateTaskId(): string {
  * @returns true if the ID is valid, false otherwise
  */
 function validateTaskId(id: string): boolean {
-  // Check length (3-8 characters)
-  if (id.length < 3 || id.length > 8) {
+  // Check length (1-20 characters, allowing more flexibility)
+  if (id.length < 1 || id.length > 20) {
     return false;
   }
   
-  // Check that it's alphanumeric
-  const alphanumericRegex = /^[a-zA-Z0-9]+$/;
-  if (!alphanumericRegex.test(id)) {
+  // Allow letters, numbers, and common symbols
+  // Excluding only characters that might cause issues in paths or parsing: / \ : * ? " < > |
+  const validCharsRegex = /^[a-zA-Z0-9\-_@#$%&+=!.]+$/;
+  if (!validCharsRegex.test(id)) {
     return false;
   }
   
-  // Check that it's not pure numbers (must contain at least one letter)
-  const hasLetter = /[a-zA-Z]/.test(id);
-  if (!hasLetter) {
-    return false;
-  }
-  
+  // No additional restrictions - pure numbers, symbols, etc. are all allowed
   return true;
 }
 
@@ -110,24 +92,39 @@ async function runTaskIdTests() {
     // Test 1: validateTaskId function
     console.log('Testing validateTaskId function...');
     
-    // Valid IDs
+    // Valid IDs - letters, numbers, symbols
     assert(validateTaskId('abc') === true, 'Should accept 3-character ID with letters');
     assert(validateTaskId('a1b2c3d4') === true, 'Should accept 8-character mixed ID');
     assert(validateTaskId('auth1') === true, 'Should accept typical task ID');
     assert(validateTaskId('ui2') === true, 'Should accept short mixed ID');
     assert(validateTaskId('step') === true, 'Should accept all-letter ID');
+    assert(validateTaskId('123') === true, 'Should accept pure numbers');
+    assert(validateTaskId('12345') === true, 'Should accept longer pure numbers');
+    assert(validateTaskId('ab-c') === true, 'Should accept IDs with hyphens');
+    assert(validateTaskId('ab_c') === true, 'Should accept IDs with underscores');
+    assert(validateTaskId('@task') === true, 'Should accept IDs with @ symbol');
+    assert(validateTaskId('task#1') === true, 'Should accept IDs with # symbol');
+    assert(validateTaskId('v1.0') === true, 'Should accept IDs with dots');
+    assert(validateTaskId('user+admin') === true, 'Should accept IDs with + symbol');
+    assert(validateTaskId('test!') === true, 'Should accept IDs with exclamation');
+    assert(validateTaskId('x') === true, 'Should accept single character ID');
     
-    // Invalid IDs - too short/long
-    assert(validateTaskId('ab') === false, 'Should reject 2-character ID');
-    assert(validateTaskId('abcdefghi') === false, 'Should reject 9-character ID');
+    // Invalid IDs - too long
+    assert(validateTaskId('a'.repeat(21)) === false, 'Should reject IDs longer than 20 characters');
     
-    // Invalid IDs - pure numbers
-    assert(validateTaskId('123') === false, 'Should reject pure numbers');
-    assert(validateTaskId('12345') === false, 'Should reject longer pure numbers');
+    // Invalid IDs - empty
+    assert(validateTaskId('') === false, 'Should reject empty ID');
     
-    // Invalid IDs - special characters
-    assert(validateTaskId('ab-c') === false, 'Should reject IDs with hyphens');
-    assert(validateTaskId('ab_c') === false, 'Should reject IDs with underscores');
+    // Invalid IDs - forbidden characters
+    assert(validateTaskId('ab/c') === false, 'Should reject IDs with forward slash');
+    assert(validateTaskId('ab\\c') === false, 'Should reject IDs with backslash');
+    assert(validateTaskId('ab:c') === false, 'Should reject IDs with colon');
+    assert(validateTaskId('ab*c') === false, 'Should reject IDs with asterisk');
+    assert(validateTaskId('ab?c') === false, 'Should reject IDs with question mark');
+    assert(validateTaskId('ab"c') === false, 'Should reject IDs with double quote');
+    assert(validateTaskId('ab<c') === false, 'Should reject IDs with less than');
+    assert(validateTaskId('ab>c') === false, 'Should reject IDs with greater than');
+    assert(validateTaskId('ab|c') === false, 'Should reject IDs with pipe');
     assert(validateTaskId('ab c') === false, 'Should reject IDs with spaces');
     
     console.log('validateTaskId tests PASSED');
@@ -143,14 +140,11 @@ async function runTaskIdTests() {
       // Each generated ID should be valid
       assert(validateTaskId(id) === true, `Generated ID '${id}' should be valid`);
       
-      // Check length is within range
+      // Check length is within range (generator still uses 3-8 for reasonable defaults)
       assert(id.length >= 3 && id.length <= 8, `Generated ID '${id}' should be 3-8 characters`);
       
-      // Check it's alphanumeric
-      assert(/^[a-zA-Z0-9]+$/.test(id), `Generated ID '${id}' should be alphanumeric`);
-      
-      // Check it has at least one letter
-      assert(/[a-zA-Z]/.test(id), `Generated ID '${id}' should contain at least one letter`);
+      // Check it contains only allowed characters
+      assert(/^[a-zA-Z0-9\-_@#$%&+=!.]+$/.test(id), `Generated ID '${id}' should contain only allowed characters`);
       
       generatedIds.add(id);
     }

@@ -6,7 +6,7 @@
   - _Requirements: 1.1, 1.2, 3.1, 3.2_
 
 - [x] 2. Implement task ID generation system
-  - Create generateTaskId function that produces 3-8 character alphanumeric IDs avoiding pure numbers
+  - Create generateTaskId function that produces 1-20 character IDs allowing letters, numbers, and symbols
   - Implement validateTaskId function to ensure ID format compliance
   - Add isUniqueInSession function to check ID uniqueness within task hierarchy
   - _Requirements: 3.1, 3.2, 3.3_

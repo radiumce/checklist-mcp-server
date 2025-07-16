@@ -13,7 +13,7 @@ This directory contains a comprehensive test suite for the Tasklist Enhancement 
    - Basic CRUD operations
 
 2. **`task-id-generation.test.ts`** - Specialized tests for task ID system
-   - ID format validation (3-8 alphanumeric characters with at least one letter)
+   - ID format validation (1-20 characters, letters/numbers/symbols allowed, excluding / \ : * ? " < > |)
    - Uniqueness validation within sessions
    - Generation algorithm testing
 
@@ -162,7 +162,7 @@ Tests use consistent data patterns:
 
 ```typescript
 interface TaskInput {
-  taskId: string;      // 3-8 alphanumeric with at least one letter
+  taskId: string;      // 1-20 characters, letters/numbers/symbols allowed, excluding / \ : * ? " < > |
   description: string; // Human-readable description
   status?: 'TODO' | 'DONE'; // Optional, defaults to TODO
   children?: TaskInput[]; // Optional nested tasks

@@ -91,7 +91,7 @@ function validatePath(path) {
             logger.error({ path, invalidSegment: segment }, 'Invalid path segment: does not match task ID format');
             return {
                 isValid: false,
-                error: `Invalid path segment '${segment}': must be a valid task ID (3-8 alphanumeric characters with at least one letter)`
+                error: `Invalid path segment '${segment}': must be a valid task ID (1-20 characters, letters/numbers/symbols allowed, excluding / \\ : * ? " < > |)`
             };
         }
     }
@@ -133,7 +133,7 @@ function validateTaskData(task, context = '') {
         errors.push(error);
     }
     else if (!(0, taskIdGenerator_js_1.validateTaskId)(task.taskId)) {
-        const error = `${contextPrefix}Task 'taskId' format is invalid: '${task.taskId}' (must be 3-8 alphanumeric characters with at least one letter)`;
+        const error = `${contextPrefix}Task 'taskId' format is invalid: '${task.taskId}' (must be 1-20 characters, letters/numbers/symbols allowed, excluding / \\ : * ? " < > |)`;
         logger.error({ task, context }, error);
         errors.push(error);
     }
@@ -518,14 +518,28 @@ async function main() {
     // --- Tool Definitions ---
     // 1. update_tasks tool
     const updateTasksInputSchema = zod_1.z.object({
-        sessionId: zod_1.z.string().min(1, "sessionId cannot be empty"),
-        path: zod_1.z.string().default("/"), // Default to root path
+        sessionId: zod_1.z.string()
+            .min(1, "sessionId cannot be empty")
+            .describe("Unique identifier for the task session. Must be 1-100 characters, alphanumeric with hyphens/underscores allowed."),
+        path: zod_1.z.string()
+            .default("/")
+            .describe("Hierarchical path specifying where to update tasks. Examples: '/' (root level), '/auth1/' (children of task auth1), '/auth1/api2/' (children of task api2 under auth1). Path segments must be valid task IDs. Use '/' to replace entire task list, '/taskId/' to replace children of a specific task."),
         tasks: zod_1.z.array(zod_1.z.object({
-            taskId: zod_1.z.string().min(1, "Task ID cannot be empty"),
-            description: zod_1.z.string().min(1, "Task description cannot be empty"),
-            status: zod_1.z.enum(['TODO', 'DONE']).default('TODO'),
-            children: zod_1.z.array(zod_1.z.any()).optional() // Recursive Task structure
-        })).min(0, "Tasks array must be valid") // Allow empty arrays for clearing
+            taskId: zod_1.z.string()
+                .min(1, "Task ID cannot be empty")
+                .describe("Unique 1-20 character identifier for the task (letters, numbers, symbols allowed, excluding / \\ : * ? \" < > |). Examples: 'task-1', 'task-1-1', 'task-1-a', 'task1-a', 'task1-1', 'task-1-a-b', 'user@task-1'"),
+            description: zod_1.z.string()
+                .min(1, "Task description cannot be empty")
+                .describe("Human-readable description of the task (max 1000 characters)"),
+            status: zod_1.z.enum(['TODO', 'DONE'])
+                .default('TODO')
+                .describe("Current status of the task. 'TODO' for incomplete, 'DONE' for completed"),
+            children: zod_1.z.array(zod_1.z.any())
+                .optional()
+                .describe("Optional array of subtasks with the same structure as parent tasks")
+        }))
+            .min(0, "Tasks array must be valid")
+            .describe("Array of tasks to set at the specified path. Empty array clears tasks at that path.")
     });
     server.tool("update_tasks", "Updates tasks at a specific hierarchy level within a session. Accepts a path parameter for targeting specific levels (e.g., '/', '/taskId/', '/taskId1/taskId2/'). Preserves unchanged tasks and their subtree structures. Creates new session if sessionId doesn't exist.", updateTasksInputSchema.shape, async ({ sessionId, path, tasks }) => {
         // Log entry with request details
@@ -661,8 +675,12 @@ async function main() {
     });
     // 2. mark_task_as_done tool
     const markTaskAsDoneInputSchema = zod_1.z.object({
-        sessionId: zod_1.z.string().min(1, "sessionId cannot be empty"),
-        taskId: zod_1.z.string().min(1, "taskId cannot be empty")
+        sessionId: zod_1.z.string()
+            .min(1, "sessionId cannot be empty")
+            .describe("Unique identifier for the task session. Must match an existing session."),
+        taskId: zod_1.z.string()
+            .min(1, "taskId cannot be empty")
+            .describe("The unique identifier of the task to mark as done. Task will be found at any depth in the hierarchy. Examples: 'auth1', 'ui2', 'login'")
     });
     server.tool("mark_task_as_done", "Marks a specific task as 'DONE' within a session using hierarchical task search. Requires the 'sessionId' and the 'taskId' of the task to be marked. Preserves subtask independence - marking a parent task does not affect subtask status. Returns the complete hierarchical task view after marking.", markTaskAsDoneInputSchema.shape, async ({ sessionId, taskId }) => {
         // Log entry with request details
@@ -694,7 +712,7 @@ async function main() {
                 return {
                     content: [{
                             type: "text",
-                            text: `Error: Task ID '${taskId}' has invalid format (must be 3-8 alphanumeric characters with at least one letter)`
+                            text: `Error: Task ID '${taskId}' has invalid format (must be 1-20 characters, letters/numbers/symbols allowed, excluding / \\ : * ? " < > |)`
                         }]
                 };
             }
@@ -757,7 +775,9 @@ async function main() {
     });
     // 3. get_all_tasks tool
     const getAllTasksInputSchema = zod_1.z.object({
-        sessionId: zod_1.z.string().min(1, "sessionId cannot be empty")
+        sessionId: zod_1.z.string()
+            .min(1, "sessionId cannot be empty")
+            .describe("Unique identifier for the task session to retrieve tasks from. Must match an existing session.")
     });
     server.tool("get_all_tasks", "Retrieves the complete hierarchical list of tasks and their current status ('TODO' or 'DONE') for the specified 'sessionId'. Returns tasks in a tree format with proper indentation and visual indicators.", getAllTasksInputSchema.shape, async ({ sessionId }) => {
         // Log entry with request details

@@ -86,20 +86,19 @@ function validatePath(path: string): { isValid: boolean; normalizedPath?: string
  * Validates that a task ID meets the format requirements
  */
 function validateTaskId(id: string): boolean {
-  if (id.length < 3 || id.length > 8) {
+  // Check length (1-20 characters, allowing more flexibility)
+  if (id.length < 1 || id.length > 20) {
     return false;
   }
   
-  const alphanumericRegex = /^[a-zA-Z0-9]+$/;
-  if (!alphanumericRegex.test(id)) {
+  // Allow letters, numbers, and common symbols
+  // Excluding only characters that might cause issues in paths or parsing: / \ : * ? " < > |
+  const validCharsRegex = /^[a-zA-Z0-9\-_@#$%&+=!.]+$/;
+  if (!validCharsRegex.test(id)) {
     return false;
   }
   
-  const hasLetter = /[a-zA-Z]/.test(id);
-  if (!hasLetter) {
-    return false;
-  }
-  
+  // No additional restrictions - pure numbers, symbols, etc. are all allowed
   return true;
 }
 
@@ -121,7 +120,7 @@ function validateTaskData(task: any, context: string = ''): { isValid: boolean; 
   } else if (typeof task.taskId !== 'string') {
     errors.push(`${contextPrefix}Task 'taskId' must be a string`);
   } else if (!validateTaskId(task.taskId)) {
-    errors.push(`${contextPrefix}Task 'taskId' format is invalid: '${task.taskId}' (must be 3-8 alphanumeric characters with at least one letter)`);
+    errors.push(`${contextPrefix}Task 'taskId' format is invalid: '${task.taskId}' (must be 1-20 characters, letters/numbers/symbols allowed, excluding / \\ : * ? " < > |)`);
   }
 
   if (!task.description) {
@@ -394,10 +393,29 @@ async function runCoreTests() {
     assert(validateTaskId('a1b2c3d4') === true, 'Should accept 8-character mixed ID');
     
     // Invalid task IDs
-    assert(validateTaskId('ab') === false, 'Should reject too short ID');
-    assert(validateTaskId('abcdefghi') === false, 'Should reject too long ID');
-    assert(validateTaskId('123') === false, 'Should reject pure numbers');
-    assert(validateTaskId('ab-c') === false, 'Should reject special characters');
+    assert(validateTaskId('') === false, 'Should reject empty ID');
+    assert(validateTaskId('a'.repeat(21)) === false, 'Should reject too long ID (>20 chars)');
+    assert(validateTaskId('ab/c') === false, 'Should reject forbidden characters (/)');
+    assert(validateTaskId('ab\\c') === false, 'Should reject forbidden characters (\\)');
+    assert(validateTaskId('ab:c') === false, 'Should reject forbidden characters (:)');
+    assert(validateTaskId('ab*c') === false, 'Should reject forbidden characters (*)');
+    assert(validateTaskId('ab?c') === false, 'Should reject forbidden characters (?)');
+    assert(validateTaskId('ab"c') === false, 'Should reject forbidden characters (")');
+    assert(validateTaskId('ab<c') === false, 'Should reject forbidden characters (<)');
+    assert(validateTaskId('ab>c') === false, 'Should reject forbidden characters (>)');
+    assert(validateTaskId('ab|c') === false, 'Should reject forbidden characters (|)');
+    assert(validateTaskId('ab c') === false, 'Should reject spaces');
+    
+    // Valid task IDs (now allowed)
+    assert(validateTaskId('123') === true, 'Should accept pure numbers');
+    assert(validateTaskId('ab-c') === true, 'Should accept hyphens');
+    assert(validateTaskId('ab_c') === true, 'Should accept underscores');
+    assert(validateTaskId('@task') === true, 'Should accept @ symbol');
+    assert(validateTaskId('task#1') === true, 'Should accept # symbol');
+    assert(validateTaskId('v1.0') === true, 'Should accept dots');
+    assert(validateTaskId('user+admin') === true, 'Should accept + symbol');
+    assert(validateTaskId('test!') === true, 'Should accept exclamation');
+    assert(validateTaskId('x') === true, 'Should accept single character');
     
     console.log('validateTaskId tests PASSED');
     

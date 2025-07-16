@@ -68,7 +68,7 @@ async function runErrorHandlingTests() {
             arguments: { 
                 sessionId: "test-session", 
                 path: "/",
-                tasks: [{ taskId: "ab", description: "Too short ID" }] // Invalid: taskId too short
+                tasks: [{ taskId: "task/invalid", description: "Invalid ID with forbidden character" }] // Invalid: taskId contains forbidden character
             } as unknown as { [x: string]: unknown }
         });
         const invalidTaskText = (invalidTaskResult as ToolSuccessResponse).content[0].text;
