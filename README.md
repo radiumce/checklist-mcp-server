@@ -1,87 +1,201 @@
 # Checklist MCP Server
 
-A simple example implementation of a Model Context Protocol (MCP) server that manages checklists.
+A Model Context Protocol (MCP) server for hierarchical checklist management with session-based task organization and tree visualization.
 
-This server uses the `@modelcontextprotocol/sdk` and provides basic functionality to save, retrieve, and check off tasks associated with different sessions.
+## Overview
+
+The Checklist MCP Server provides a robust solution for managing hierarchical task lists through the Model Context Protocol. It enables AI assistants and other MCP clients to create, update, and track tasks in a structured, tree-like format with support for multiple concurrent sessions. It can significantly enhance the agent's ability to adhere to the task plan during task execution.
 
 ## Features
 
-*   Manages multiple checklists using session IDs.
-*   Provides MCP tools to interact with checklists.
-*   Uses in-memory storage (tasks are lost when the server stops).
-*   Includes basic tests using the MCP client SDK.
-*   Structured logging using Pino.
+- **Hierarchical Task Management**: Create nested task structures with unlimited depth
+- **Session-Based Isolation**: Multiple independent task lists per session
+- **Visual Tree Display**: ASCII tree visualization with status indicators (✓ for DONE, ○ for TODO)
+- **Path-Based Operations**: Update tasks at specific hierarchy levels using path notation
+- **Flexible Task IDs**: Support for alphanumeric characters and common symbols (1-20 characters)
+- **Comprehensive Validation**: Input validation with detailed error messages
+- **Real-time Updates**: Immediate task status changes with full hierarchy display
 
-## Prerequisites
 
-*   Node.js (v18 or later recommended)
-*   npm (comes with Node.js)
+## MCP Configuration
 
-## Installation
-
-1.  Clone the repository (if you haven't already):
-    ```bash
-    git clone https://github.com/radiumce/checklist-mcp-server.git
-    cd checklist-mcp-server
-    ```
-2.  Install dependencies:
-    ```bash
-    npm install
-    ```
-
-## Building
-
-Compile the TypeScript code to JavaScript:
-
-```bash
-npm run build
+```json
+{
+  "mcpServers": {
+    "checklist": {
+      "command": "npx",
+      "args": [
+        "checklist-mcp-server"
+      ],
+      "env": {}
+    }
+  }
+}
 ```
 
-This will generate the output in the `dist/` directory.
 
-## Running the Server
+## Available Tools
 
-This server is designed to communicate via standard input/output (stdio) as per the MCP specification. It's typically invoked by an MCP client or orchestrator.
+The server provides three MCP tools for comprehensive task management:
 
-To run it directly (primarily for debugging or manual interaction, though not the standard use case):
+### 1. `update_tasks`
 
-```bash
-node dist/server.js
+Updates tasks at a specific hierarchy level within a session.
+
+**Parameters:**
+- `sessionId` (string, required): Unique session identifier (1-100 characters, alphanumeric with hyphens/underscores)
+- `path` (string, optional): Hierarchical path specifying where to update tasks (default: "/")
+- `tasks` (array, required): Array of task objects to set at the specified path
+
+**Task Object Structure:**
+```typescript
+{
+  taskId: string;        // 1-20 characters, letters/numbers/symbols (excluding / \ : * ? " < > |)
+  description: string;   // Human-readable task description (max 1000 characters)
+  status?: 'TODO' | 'DONE'; // Task status (default: 'TODO')
+  children?: Task[];     // Optional array of subtasks
+}
 ```
 
-You would then need to send MCP JSON messages via stdin and read responses from stdout.
+**Path Examples:**
+- `"/"` - Root level (replaces entire task list)
+- `"/auth1/"` - Children of task 'auth1'
+- `"/auth1/api2/"` - Children of task 'api2' under 'auth1'
 
-## Running Tests
-
-The project includes an integration test suite that uses the MCP client SDK to interact with the server via stdio.
-
-To run the tests:
-
-```bash
-npm run test
+**Example Usage:**
+```json
+{
+  "sessionId": "project-alpha",
+  "path": "/",
+  "tasks": [
+    {
+      "taskId": "setup",
+      "description": "Project setup tasks",
+      "status": "TODO",
+      "children": [
+        {
+          "taskId": "deps",
+          "description": "Install dependencies",
+          "status": "DONE"
+        },
+        {
+          "taskId": "config",
+          "description": "Configure environment",
+          "status": "TODO"
+        }
+      ]
+    }
+  ]
+}
 ```
 
-This command first builds the project and then executes the tests defined in `test/run_tests.ts`.
+### 2. `get_all_tasks`
 
-## Project Structure
+Retrieves all tasks for a session with formatted tree visualization.
 
-```
-.
-├── dist/             # Compiled JavaScript output
-├── node_modules/     # Installed dependencies
-├── src/
-│   └── server.ts     # Main server logic and tool definitions
-├── test/
-│   └── run_tests.ts  # Integration tests using MCP client
-├── .gitignore        # Git ignore rules
-├── package.json      # Project metadata and dependencies
-├── package-lock.json # Locked dependency versions
-├── README.md         # This file
-└── tsconfig.json     # TypeScript configuration
+**Parameters:**
+- `sessionId` (string, required): Session identifier to retrieve tasks from
+
+**Response:**
+Returns a formatted ASCII tree showing the complete task hierarchy with status indicators.
+
+**Example Usage:**
+```json
+{
+  "sessionId": "project-alpha"
+}
 ```
 
-## MCP Tools Provided
+**Example Response:**
+```
+├── ○ setup: Project setup tasks
+│   ├── ✓ deps: Install dependencies
+│   └── ○ config: Configure environment
+└── ○ testing: Testing tasks
+    └── ○ unit: Write unit tests
+```
 
-*   `save_tasks`: Saves or replaces a list of tasks for a session. Creates a new session if no ID is provided.
-*   `get_all_tasks`: Retrieves all tasks for a given session ID.
-*   `mark_task_as_done`: Marks a specific task as DONE within a session.
+### 3. `mark_task_as_done`
+
+Marks a specific task as 'DONE' using hierarchical task search.
+
+**Parameters:**
+- `sessionId` (string, required): Session identifier containing the task
+- `taskId` (string, required): Unique identifier of the task to mark as done
+
+**Features:**
+- Finds tasks at any depth in the hierarchy
+- Preserves subtask independence (marking parent doesn't affect children)
+- Returns complete updated hierarchy after marking
+
+**Example Usage:**
+```json
+{
+  "sessionId": "project-alpha",
+  "taskId": "config"
+}
+```
+
+## Usage Examples
+
+### Basic Task Management
+
+```javascript
+// Create initial tasks
+await client.callTool({
+  name: 'update_tasks',
+  arguments: {
+    sessionId: 'my-project',
+    path: '/',
+    tasks: [
+      {
+        taskId: 'backend',
+        description: 'Backend development',
+        children: [
+          { taskId: 'api', description: 'Build REST API' },
+          { taskId: 'db', description: 'Setup database' }
+        ]
+      },
+      {
+        taskId: 'frontend',
+        description: 'Frontend development'
+      }
+    ]
+  }
+});
+
+// Mark a task as done
+await client.callTool({
+  name: 'mark_task_as_done',
+  arguments: {
+    sessionId: 'my-project',
+    taskId: 'api'
+  }
+});
+
+// Get current status
+await client.callTool({
+  name: 'get_all_tasks',
+  arguments: {
+    sessionId: 'my-project'
+  }
+});
+```
+
+### Hierarchical Updates
+
+```javascript
+// Add subtasks to existing task
+await client.callTool({
+  name: 'update_tasks',
+  arguments: {
+    sessionId: 'my-project',
+    path: '/backend/',
+    tasks: [
+      { taskId: 'api', description: 'Build REST API', status: 'DONE' },
+      { taskId: 'db', description: 'Setup database' },
+      { taskId: 'auth', description: 'Implement authentication' }
+    ]
+  }
+});
+```
