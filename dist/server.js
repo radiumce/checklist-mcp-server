@@ -10,8 +10,14 @@ const zod_1 = require("zod");
 const pino_1 = __importDefault(require("pino")); // Import pino
 // Configure pino logger to write to stderr
 const logger = (0, pino_1.default)({ level: 'info' }, pino_1.default.destination(2)); // 2 is stderr file descriptor
+// Import work info utilities
+const workInfoLRUCache_js_1 = require("./utils/workInfoLRUCache.js");
+const workIdGenerator_js_1 = require("./utils/workIdGenerator.js");
+const workInfoValidation_js_1 = require("./utils/workInfoValidation.js");
 // In-memory store for tasks, keyed by sessionId
 const taskStore = new Map();
+// Initialize work info LRU cache
+const workInfoCache = new workInfoLRUCache_js_1.WorkInfoLRUCache(10);
 // Enhanced Error Handling and Validation
 /**
  * Validates session ID format and existence
@@ -230,34 +236,6 @@ function validateTasksArray(tasks, context = '') {
     return { isValid: errors.length === 0, errors };
 }
 /**
- * Validates that a path exists in the task hierarchy
- * @param sessionTasks The root tasks array for the session
- * @param path The path to validate
- * @returns Object with isValid boolean and error message if invalid
- */
-function validatePathExists(sessionTasks, path) {
-    const pathSegments = parsePath(path);
-    // Root path always exists
-    if (pathSegments.length === 0) {
-        return { isValid: true };
-    }
-    // Validate each segment exists
-    let currentTasks = sessionTasks;
-    for (let i = 0; i < pathSegments.length; i++) {
-        const segment = pathSegments[i];
-        const task = currentTasks.find(t => t.taskId === segment);
-        if (!task) {
-            const partialPath = '/' + pathSegments.slice(0, i + 1).join('/');
-            const error = `Path '${path}' is invalid: task '${segment}' not found at '${partialPath}'`;
-            logger.error({ path, segment, partialPath }, error);
-            return { isValid: false, error };
-        }
-        // Move to children for next iteration
-        currentTasks = task.children || [];
-    }
-    return { isValid: true };
-}
-/**
  * Logs comprehensive error information for debugging
  * @param operation The operation being performed
  * @param error The error that occurred
@@ -319,34 +297,6 @@ function parsePath(path) {
     }
     // Split by slash and filter out empty segments
     return normalizedPath.split('/').filter(segment => segment.length > 0);
-}
-/**
- * Recursively finds a task at the specified path in the task hierarchy
- * @param tasks The root tasks array to search in
- * @param pathSegments Array of path segments from parsePath
- * @returns The task at the specified path, or null if not found
- */
-function findTaskAtPath(tasks, pathSegments) {
-    // If no path segments, we're looking for the root level (return null as there's no single task)
-    if (pathSegments.length === 0) {
-        return null;
-    }
-    // Find the task with the first segment's ID
-    const targetTaskId = pathSegments[0];
-    const targetTask = tasks.find(task => task.taskId === targetTaskId);
-    if (!targetTask) {
-        return null; // Task not found at this level
-    }
-    // If this is the last segment, return the found task
-    if (pathSegments.length === 1) {
-        return targetTask;
-    }
-    // If there are more segments, recurse into children
-    if (!targetTask.children || targetTask.children.length === 0) {
-        return null; // No children to search in
-    }
-    // Recurse with remaining path segments
-    return findTaskAtPath(targetTask.children, pathSegments.slice(1));
 }
 /**
  * Updates tasks at a specific hierarchy level, preserving unchanged tasks and their subtrees
@@ -457,57 +407,6 @@ function getTaskPath(tasks, taskId, currentPath = "") {
         }
     }
     return null; // Task not found
-}
-/**
- * Validates the integrity of a task hierarchy
- * @param tasks The tasks array to validate
- * @param seenIds Set of task IDs already seen (used for recursion to detect duplicates)
- * @param currentPath Current path for error reporting
- * @returns Object with isValid boolean and array of error messages
- */
-function validateTaskHierarchy(tasks, seenIds = new Set(), currentPath = "root") {
-    const errors = [];
-    for (let i = 0; i < tasks.length; i++) {
-        const task = tasks[i];
-        const taskPath = `${currentPath}[${i}]`;
-        // Validate required fields
-        if (!task.taskId || typeof task.taskId !== 'string') {
-            errors.push(`Task at ${taskPath} has invalid or missing taskId`);
-            continue; // Skip further validation for this task
-        }
-        if (!task.description || typeof task.description !== 'string') {
-            errors.push(`Task at ${taskPath} (${task.taskId}) has invalid or missing description`);
-        }
-        if (!task.status || (task.status !== 'TODO' && task.status !== 'DONE')) {
-            errors.push(`Task at ${taskPath} (${task.taskId}) has invalid status: ${task.status}`);
-        }
-        // Validate task ID format
-        if (!(0, taskIdGenerator_js_1.validateTaskId)(task.taskId)) {
-            errors.push(`Task at ${taskPath} has invalid taskId format: ${task.taskId}`);
-        }
-        // Check for duplicate task IDs
-        if (seenIds.has(task.taskId)) {
-            errors.push(`Duplicate task ID found: ${task.taskId} at ${taskPath}`);
-        }
-        else {
-            seenIds.add(task.taskId);
-        }
-        // Validate children if they exist
-        if (task.children) {
-            if (!Array.isArray(task.children)) {
-                errors.push(`Task at ${taskPath} (${task.taskId}) has invalid children property (not an array)`);
-            }
-            else {
-                // Recursively validate children
-                const childValidation = validateTaskHierarchy(task.children, seenIds, `${taskPath}.children`);
-                errors.push(...childValidation.errors);
-            }
-        }
-    }
-    return {
-        isValid: errors.length === 0,
-        errors
-    };
 }
 async function main() {
     // Create an MCP server instance
@@ -818,6 +717,263 @@ async function main() {
                 content: [{
                         type: "text",
                         text: `Error retrieving tasks: ${error instanceof Error ? error.message : String(error)}`
+                    }]
+            };
+        }
+    });
+    // 4. save_current_work_info tool
+    const saveCurrentWorkInfoInputSchema = zod_1.z.object({
+        work_summarize: zod_1.z.string()
+            .min(1, "work_summarize cannot be empty")
+            .max(5000, "work_summarize cannot exceed 5000 characters")
+            .describe("Full work summary text describing the current work progress and context"),
+        work_description: zod_1.z.string()
+            .min(1, "work_description cannot be empty")
+            .max(200, "work_description cannot exceed 200 characters")
+            .describe("Short description for easy identification of the work"),
+        sessionId: zod_1.z.string()
+            .min(1, "sessionId cannot be empty")
+            .max(100, "sessionId cannot exceed 100 characters")
+            .regex(/^[a-zA-Z0-9_-]+$/, "sessionId can only contain alphanumeric characters, hyphens, and underscores")
+            .optional()
+            .describe("Optional session ID to associate work with current tasks")
+    });
+    server.tool("save_current_work_info", "Saves current work information with summary and description to an LRU cache. Optionally associates work with a task session to capture current task state. Returns a unique 8-digit work ID for future reference. If the same sessionId is provided, overwrites the existing entry.", saveCurrentWorkInfoInputSchema.shape, async ({ work_summarize, work_description, sessionId }) => {
+        // Log entry with request details
+        logger.info({
+            tool: 'save_current_work_info',
+            params: {
+                work_description,
+                sessionId,
+                summarizeLength: work_summarize.length
+            }
+        }, 'Received save_current_work_info request');
+        try {
+            // Validate input using existing validation functions
+            const inputValidation = (0, workInfoValidation_js_1.validateSaveWorkInfoInput)({
+                work_summarize,
+                work_description,
+                sessionId
+            });
+            if (!inputValidation.isValid) {
+                const errorMessage = `Input validation failed: ${inputValidation.errors.join(', ')}`;
+                logError('save_current_work_info', errorMessage, { work_description, sessionId });
+                return {
+                    content: [{
+                            type: "text",
+                            text: `Error: ${errorMessage}`
+                        }]
+                };
+            }
+            // Generate unique work ID
+            let workId;
+            try {
+                workId = workIdGenerator_js_1.WorkIdGenerator.generateUniqueId();
+            }
+            catch (error) {
+                const errorMessage = 'Failed to generate unique work ID';
+                logError('save_current_work_info', errorMessage, { work_description, sessionId });
+                return {
+                    content: [{
+                            type: "text",
+                            text: `Error: ${errorMessage}`
+                        }]
+                };
+            }
+            // Create timestamp
+            const timestamp = (0, workInfoValidation_js_1.createTimestamp)();
+            // Handle session validation and task snapshot capture
+            let work_tasks = undefined;
+            let sessionWarning = undefined;
+            if (sessionId) {
+                // Validate session exists in taskStore
+                const sessionTasks = taskStore.get(sessionId);
+                if (sessionTasks) {
+                    // Capture static snapshot of current task hierarchy
+                    work_tasks = JSON.parse(JSON.stringify(sessionTasks)); // Deep copy for static snapshot
+                    logger.info({ sessionId, workId, taskCount: sessionTasks.length }, 'Captured task snapshot for work info');
+                }
+                else {
+                    // Session doesn't exist, log warning but continue
+                    sessionWarning = `Warning: sessionId '${sessionId}' does not exist in task store`;
+                    logger.warn({ sessionId, workId }, sessionWarning);
+                }
+            }
+            // Check for existing work with same sessionId (overwrite behavior)
+            if (sessionId) {
+                const recentWorks = workInfoCache.getRecentList();
+                const existingWork = recentWorks.find(work => {
+                    const fullWork = workInfoCache.get(work.workId);
+                    return fullWork?.sessionId === sessionId;
+                });
+                if (existingWork) {
+                    // Use the existing workId to overwrite
+                    workId = existingWork.workId;
+                    logger.info({ sessionId, workId }, 'Overwriting existing work info for sessionId');
+                }
+            }
+            // Create work info object
+            const workInfo = {
+                workId,
+                work_timestamp: timestamp,
+                work_description,
+                work_summarize,
+                sessionId,
+                work_tasks
+            };
+            // Store in LRU cache
+            workInfoCache.set(workInfo);
+            // Log successful save
+            logger.info({
+                workId,
+                sessionId,
+                description: work_description,
+                hasTaskSnapshot: !!work_tasks
+            }, 'Work info saved successfully');
+            // Prepare response
+            const responseMessages = [
+                {
+                    type: "text",
+                    text: `Successfully saved work information with ID: ${workId}`
+                },
+                {
+                    type: "text",
+                    text: `Timestamp: ${timestamp}`
+                }
+            ];
+            if (sessionId && work_tasks) {
+                responseMessages.push({
+                    type: "text",
+                    text: `Associated with session '${sessionId}' and captured task snapshot`
+                });
+            }
+            else if (sessionId && !work_tasks) {
+                responseMessages.push({
+                    type: "text",
+                    text: `Associated with session '${sessionId}' (no tasks found)`
+                });
+            }
+            if (sessionWarning) {
+                responseMessages.push({
+                    type: "text",
+                    text: sessionWarning
+                });
+            }
+            return {
+                content: responseMessages
+            };
+        }
+        catch (error) {
+            logError('save_current_work_info', error, { work_description, sessionId });
+            return {
+                content: [{
+                        type: "text",
+                        text: `Error saving work info: ${error instanceof Error ? error.message : String(error)}`
+                    }]
+            };
+        }
+    });
+    // 5. get_recent_works_info tool
+    server.tool("get_recent_works_info", "Retrieves a list of recent work information entries from the LRU cache. Returns work summaries ordered by most recently used first. Each entry contains workId, timestamp, and description for easy identification.", {}, async () => {
+        // Log entry with request details
+        logger.info({ tool: 'get_recent_works_info' }, 'Received get_recent_works_info request');
+        try {
+            // Get recent works list from LRU cache
+            const recentWorks = workInfoCache.getRecentList();
+            // Log successful retrieval
+            logger.info({
+                count: recentWorks.length,
+                isEmpty: recentWorks.length === 0
+            }, 'Retrieved recent works list');
+            // Format response according to requirements
+            const response = {
+                works: recentWorks
+            };
+            return {
+                content: [{
+                        type: "text",
+                        text: JSON.stringify(response, null, 2)
+                    }]
+            };
+        }
+        catch (error) {
+            logError('get_recent_works_info', error);
+            return {
+                content: [{
+                        type: "text",
+                        text: `Error retrieving recent works: ${error instanceof Error ? error.message : String(error)}`
+                    }]
+            };
+        }
+    });
+    // 6. get_work_by_id tool
+    const getWorkByIdInputSchema = zod_1.z.object({
+        workId: zod_1.z.string()
+            .min(1, "workId cannot be empty")
+            .describe("The unique 8-digit numeric identifier of the work to retrieve (e.g., '12345678')")
+    });
+    server.tool("get_work_by_id", "Retrieves detailed work information by workId from the LRU cache. Returns complete work details including summary, description, timestamp, and associated task snapshot if available. Updates LRU access order when work is retrieved.", getWorkByIdInputSchema.shape, async ({ workId }) => {
+        // Log entry with request details
+        logger.info({
+            tool: 'get_work_by_id',
+            params: { workId }
+        }, 'Received get_work_by_id request');
+        try {
+            // Validate workId format using existing validation
+            const workIdValidation = (0, workInfoValidation_js_1.validateGetWorkByIdInput)({ workId });
+            if (!workIdValidation.isValid) {
+                const errorMessage = `Input validation failed: ${workIdValidation.errors.join(', ')}`;
+                logError('get_work_by_id', errorMessage, { workId });
+                return {
+                    content: [{
+                            type: "text",
+                            text: `Error: ${errorMessage}`
+                        }]
+                };
+            }
+            // Retrieve work info from LRU cache (this automatically updates access order)
+            const workInfo = workInfoCache.get(workId);
+            if (!workInfo) {
+                const errorMessage = `Work not found: No work information exists for workId '${workId}'`;
+                logger.warn({ workId }, errorMessage);
+                return {
+                    content: [{
+                            type: "text",
+                            text: `Error: ${errorMessage}`
+                        }]
+                };
+            }
+            // Log successful retrieval
+            logger.info({
+                workId,
+                description: workInfo.work_description,
+                hasSessionId: !!workInfo.sessionId,
+                hasTasks: !!workInfo.work_tasks
+            }, 'Retrieved work info successfully');
+            // Build response according to requirements
+            const response = {
+                workId: workInfo.workId,
+                work_timestamp: workInfo.work_timestamp,
+                work_description: workInfo.work_description,
+                work_summarize: workInfo.work_summarize
+            };
+            // Include work_tasks if available (static snapshot from save time)
+            if (workInfo.work_tasks !== undefined) {
+                response.work_tasks = workInfo.work_tasks;
+            }
+            return {
+                content: [{
+                        type: "text",
+                        text: JSON.stringify(response, null, 2)
+                    }]
+            };
+        }
+        catch (error) {
+            logError('get_work_by_id', error, { workId });
+            return {
+                content: [{
+                        type: "text",
+                        text: `Error retrieving work by ID: ${error instanceof Error ? error.message : String(error)}`
                     }]
             };
         }

@@ -15,6 +15,9 @@ The Checklist MCP Server provides a robust solution for managing hierarchical ta
 - **Flexible Task IDs**: Support for alphanumeric characters and common symbols (1-20 characters)
 - **Comprehensive Validation**: Input validation with detailed error messages
 - **Real-time Updates**: Immediate task status changes with full hierarchy display
+- **Work Information Management**: LRU cache-based system for storing and sharing work summaries between agents
+- **Session Association**: Link work information with task sessions to capture task state snapshots
+- **Agent Handoffs**: Enable seamless work context transfer between LLM agents
 
 
 ## MCP Configuration
@@ -36,7 +39,9 @@ The Checklist MCP Server provides a robust solution for managing hierarchical ta
 
 ## Available Tools
 
-The server provides three MCP tools for comprehensive task management:
+The server provides six MCP tools for comprehensive task and work information management:
+
+### Task Management Tools
 
 ### 1. `update_tasks`
 
@@ -136,9 +141,157 @@ Marks a specific task as 'DONE' using hierarchical task search.
 }
 ```
 
+### Work Information Management Tools
+
+### 4. `save_current_work_info`
+
+Saves current work information with summary and description to an LRU cache for sharing between agents.
+
+**Parameters:**
+- `work_summarize` (string, required): Full work summary text describing current progress and context (max 5000 characters)
+- `work_description` (string, required): Short description for easy identification (max 200 characters)
+- `sessionId` (string, optional): Session ID to associate work with current tasks and capture task snapshot
+
+**Features:**
+- Generates unique 8-digit numeric work ID
+- Creates human-readable timestamp (ISO format)
+- Captures static task snapshot when sessionId provided
+- Overwrites existing entry if same sessionId used
+- LRU eviction when cache exceeds capacity (default 10 entries)
+
+**Example Usage:**
+```json
+{
+  "work_summarize": "Completed user authentication API endpoints including login, logout, and token refresh. All endpoints are tested and documented. Next step is to implement password reset functionality.",
+  "work_description": "User Auth API - Phase 1 Complete",
+  "sessionId": "auth-project-2024"
+}
+```
+
+**Example Response:**
+```
+Successfully saved work information with ID: 12345678
+Timestamp: 2024-01-15T10:30:45.123Z
+Associated with session 'auth-project-2024' and captured task snapshot
+```
+
+### 5. `get_recent_works_info`
+
+Retrieves a list of recent work information entries ordered by most recently used.
+
+**Parameters:** None
+
+**Response Format:**
+Returns JSON array with work summaries containing:
+- `workId`: Unique 8-digit identifier
+- `work_timestamp`: Human-readable timestamp
+- `work_description`: Short description for identification
+
+**Example Usage:**
+```json
+{}
+```
+
+**Example Response:**
+```json
+{
+  "works": [
+    {
+      "workId": "12345678",
+      "work_timestamp": "2024-01-15T10:30:45.123Z",
+      "work_description": "User Auth API - Phase 1 Complete"
+    },
+    {
+      "workId": "87654321",
+      "work_timestamp": "2024-01-15T09:15:22.456Z",
+      "work_description": "Database Schema Updates"
+    }
+  ]
+}
+```
+
+### 6. `get_work_by_id`
+
+Retrieves detailed work information by workId, including full summary and associated task snapshot.
+
+**Parameters:**
+- `workId` (string, required): The unique 8-digit numeric identifier of the work to retrieve
+
+**Response Format:**
+Returns JSON object containing:
+- `workId`: The work identifier
+- `work_timestamp`: Human-readable timestamp
+- `work_description`: Short description
+- `work_summarize`: Full work summary text
+- `work_tasks` (optional): Static task snapshot from save time if sessionId was provided
+
+**Features:**
+- Updates LRU access order when work is retrieved
+- Returns static task snapshot from save time (not current task status)
+- Clear error messages for invalid or non-existent work IDs
+
+**Example Usage:**
+```json
+{
+  "workId": "12345678"
+}
+```
+
+**Example Response:**
+```json
+{
+  "workId": "12345678",
+  "work_timestamp": "2024-01-15T10:30:45.123Z",
+  "work_description": "User Auth API - Phase 1 Complete",
+  "work_summarize": "Completed user authentication API endpoints including login, logout, and token refresh. All endpoints are tested and documented. Next step is to implement password reset functionality.",
+  "work_tasks": [
+    {
+      "taskId": "auth",
+      "description": "Authentication system",
+      "status": "TODO",
+      "children": [
+        {
+          "taskId": "login",
+          "description": "Login endpoint",
+          "status": "DONE"
+        },
+        {
+          "taskId": "logout",
+          "description": "Logout endpoint", 
+          "status": "DONE"
+        }
+      ]
+    }
+  ]
+}
+```
+
+## Work Information Data Format
+
+### WorkInfo Structure
+```typescript
+interface WorkInfo {
+  workId: string;           // 8-digit numeric ID (e.g., "12345678")
+  work_timestamp: string;   // ISO format timestamp (e.g., "2024-01-15T10:30:45.123Z")
+  work_description: string; // Short description (max 200 chars)
+  work_summarize: string;   // Full work summary (max 5000 chars)
+  sessionId?: string;       // Optional session association
+  work_tasks?: any;         // Static task snapshot from save time
+}
+```
+
+### LRU Cache Behavior
+- **Capacity**: Default 10 entries, configurable
+- **Eviction**: Least Recently Used when capacity exceeded
+- **Access Tracking**: Updated on save_current_work_info and get_work_by_id operations
+- **Overwrite Logic**: Same sessionId overwrites existing entry
+- **Memory Management**: Automatic cleanup, ~50KB maximum memory usage
+
 ## Usage Examples
 
-### Basic Task Management
+### Task Management Examples
+
+#### Basic Task Management
 
 ```javascript
 // Create initial tasks
@@ -182,7 +335,7 @@ await client.callTool({
 });
 ```
 
-### Hierarchical Updates
+#### Hierarchical Updates
 
 ```javascript
 // Add subtasks to existing task
@@ -199,3 +352,181 @@ await client.callTool({
   }
 });
 ```
+
+### Work Information Management Examples
+
+#### Agent Work Handoff Workflow
+
+```javascript
+// Agent 1: Save work progress with task association
+await client.callTool({
+  name: 'save_current_work_info',
+  arguments: {
+    work_summarize: 'Completed user registration API with validation. Implemented email verification flow and password hashing. All unit tests passing. Ready to start login functionality.',
+    work_description: 'User Registration API Complete',
+    sessionId: 'user-auth-sprint'
+  }
+});
+// Returns: workId "12345678"
+
+// Agent 2: Get recent work to understand context
+await client.callTool({
+  name: 'get_recent_works_info',
+  arguments: {}
+});
+
+// Agent 2: Get detailed work information
+await client.callTool({
+  name: 'get_work_by_id',
+  arguments: {
+    workId: '12345678'
+  }
+});
+// Returns full context including task snapshot from when work was saved
+```
+
+#### Work Progress Tracking
+
+```javascript
+// Save work without session association
+await client.callTool({
+  name: 'save_current_work_info',
+  arguments: {
+    work_summarize: 'Researched three different authentication libraries. JWT with refresh tokens seems best approach. Created comparison document and architecture proposal.',
+    work_description: 'Auth Library Research Complete'
+  }
+});
+
+// Update work for same session (overwrites previous entry)
+await client.callTool({
+  name: 'save_current_work_info',
+  arguments: {
+    work_summarize: 'Updated authentication implementation. Added JWT middleware and refresh token rotation. All endpoints secured. Performance testing shows 200ms average response time.',
+    work_description: 'Auth Implementation Updated',
+    sessionId: 'user-auth-sprint'
+  }
+});
+```
+
+#### Multi-Agent Collaboration
+
+```javascript
+// Agent A: Complete database work and save progress
+await client.callTool({
+  name: 'save_current_work_info',
+  arguments: {
+    work_summarize: 'Database schema finalized with user, session, and audit tables. All migrations tested. Indexes optimized for query performance. Ready for API integration.',
+    work_description: 'Database Schema Complete',
+    sessionId: 'backend-setup'
+  }
+});
+
+// Agent B: Check recent work before starting
+const recentWorks = await client.callTool({
+  name: 'get_recent_works_info',
+  arguments: {}
+});
+
+// Agent B: Get specific work details to understand database structure
+const dbWork = await client.callTool({
+  name: 'get_work_by_id',
+  arguments: {
+    workId: recentWorks.works[0].workId
+  }
+});
+
+// Agent B: Continue with API development using database context
+```
+
+## Error Handling and Troubleshooting
+
+### Common Error Scenarios
+
+#### Task Management Errors
+
+**Invalid Session ID:**
+```
+Error: Session ID can only contain alphanumeric characters, hyphens, and underscores
+```
+- **Solution**: Use only letters, numbers, hyphens, and underscores in session IDs
+- **Valid**: `project-alpha`, `user_auth_2024`, `sprint1`
+- **Invalid**: `project@alpha`, `user auth`, `sprint#1`
+
+**Invalid Path:**
+```
+Error: Invalid path '/nonexistent/' - target task 'nonexistent' not found
+```
+- **Solution**: Ensure parent tasks exist before updating their children
+- **Check**: Use `get_all_tasks` to verify current task structure
+
+**Duplicate Task ID:**
+```
+Error: Task ID 'auth' already exists at path '/backend/auth'
+```
+- **Solution**: Use unique task IDs within the session or update at the correct path
+- **Note**: Task IDs must be unique across the entire session hierarchy
+
+**Invalid Task ID Format:**
+```
+Error: Task ID 'task/with/slashes' has invalid format
+```
+- **Solution**: Avoid these characters in task IDs: `/ \ : * ? " < > |`
+- **Valid**: `task-1`, `auth_api`, `user@login`, `step.1`
+
+#### Work Information Errors
+
+**Invalid Work ID:**
+```
+Error: Input validation failed: workId must be exactly 8 digits
+```
+- **Solution**: Use the exact 8-digit work ID returned by `save_current_work_info`
+- **Example**: `12345678` (not `1234567` or `123456789`)
+
+**Work Not Found:**
+```
+Error: Work not found: No work information exists for workId '99999999'
+```
+- **Solution**: Verify work ID exists using `get_recent_works_info`
+- **Note**: Work may have been evicted from LRU cache if capacity exceeded
+
+**Input Validation:**
+```
+Error: Input validation failed: work_description cannot exceed 200 characters
+```
+- **Solution**: Keep descriptions concise (≤200 chars) and summaries detailed (≤5000 chars)
+
+**Session Association Warning:**
+```
+Warning: sessionId 'nonexistent-session' does not exist in task store
+```
+- **Impact**: Work is saved but no task snapshot captured
+- **Solution**: Create tasks in session first, or save work without sessionId
+
+### Best Practices
+
+#### Task Management
+1. **Use descriptive task IDs**: `user-login` instead of `task1`
+2. **Keep descriptions clear**: Include enough context for other agents
+3. **Validate paths**: Check task structure with `get_all_tasks` before complex updates
+4. **Handle errors gracefully**: Check for error messages in responses
+
+#### Work Information Management
+1. **Write comprehensive summaries**: Include current state, completed work, and next steps
+2. **Use meaningful descriptions**: Help other agents quickly identify relevant work
+3. **Associate with sessions**: Link work to task sessions for complete context
+4. **Monitor cache capacity**: Recent work may be evicted after 10 entries
+5. **Handle missing work**: Check `get_recent_works_info` if specific work ID not found
+
+#### Agent Collaboration
+1. **Check recent work first**: Use `get_recent_works_info` to understand current context
+2. **Save progress frequently**: Don't lose work context between agent handoffs
+3. **Include next steps**: Help subsequent agents understand what to do next
+4. **Use consistent session IDs**: Enable work association and task context sharing
+
+### Debugging Tips
+
+1. **Enable logging**: Check server logs for detailed error information
+2. **Validate inputs**: Ensure all required fields are provided with correct formats
+3. **Test incrementally**: Start with simple operations before complex workflows
+4. **Check cache state**: Use `get_recent_works_info` to understand current work cache
+5. **Verify task structure**: Use `get_all_tasks` to confirm session task hierarchy

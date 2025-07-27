@@ -9,6 +9,12 @@ const testFiles = [
   'test/error-handling-validation.test.ts',
   'test/run_tests.ts', // Basic integration tests
   'test/integration-comprehensive.test.ts', // Comprehensive integration tests
+  'test/work-info-data-structures.test.ts', // Work info data structures and validation tests
+  'test/workInfoLRUCache.test.ts', // LRU cache unit tests
+  'test/save-current-work-info.test.ts', // Save work info integration tests
+  'test/get-recent-works-info.test.ts', // Get recent works integration tests
+  'test/get-work-by-id.test.ts', // Get work by ID integration tests
+  'test/work-info-comprehensive.test.ts', // Comprehensive work info tests
   'test/final-validation.test.ts' // Final requirements validation
 ];
 
