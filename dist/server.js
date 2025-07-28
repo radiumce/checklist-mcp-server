@@ -161,7 +161,21 @@ function createChecklistServer() {
         path: zod_1.z.string().default('/'),
         tasks: zod_1.z.array(inputTaskSchema), // Validate against the input schema
     });
-    server.tool("update_tasks", "Updates tasks at a specific hierarchy level.", updateTasksInputSchema.shape, async (params) => {
+    const updateTasksDescription = `
+Creates new tasks or overwrites existing tasks at a specific hierarchical path.
+
+This tool allows for building and managing a nested checklist. If you provide a list of tasks to a path that already contains tasks, the existing tasks at that level will be completely replaced by the new list.
+
+Input:
+- sessionId (string, required): The unique identifier for the user's session. This isolates task lists between different users or contexts.
+- path (string, optional, default: '/'): The hierarchical path where tasks should be updated, composed of '/'-separated taskIds (e.g., '/task-1/sub-task-a'). The root is '/'.
+- tasks (array, required): An array of task objects to set at the specified path. Each task object contains:
+  - taskId (string, required): A unique identifier for the task (alphanumeric, hyphens, underscores).
+  - description (string, required): The text describing the task.
+  - status (string, optional, default: 'TODO'): The status of the task, can be 'TODO' or 'DONE'.
+  - children (array, optional): A nested array of child task objects.
+`;
+    server.tool("update_tasks", updateTasksDescription, updateTasksInputSchema.shape, async (params) => {
         const validationResult = updateTasksInputSchema.safeParse(params);
         if (!validationResult.success) {
             const errorMessages = validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`);
@@ -209,7 +223,16 @@ function createChecklistServer() {
         };
     });
     const markTaskAsDoneInputSchema = zod_1.z.object({ sessionId: zod_1.z.string().min(1), taskId: zod_1.z.string().min(1) });
-    server.tool("mark_task_as_done", "Marks a specific task as 'DONE'.", markTaskAsDoneInputSchema.shape, async (params) => {
+    const markTaskAsDoneDescription = `
+Finds a specific task by its unique taskId within a session and updates its status to 'DONE'.
+
+The tool will search the entire task hierarchy for the given taskId.
+
+Input:
+- sessionId (string, required): The unique identifier for the user's session where the task exists.
+- taskId (string, required): The unique ID of the task you want to mark as done.
+`;
+    server.tool("mark_task_as_done", markTaskAsDoneDescription, markTaskAsDoneInputSchema.shape, async (params) => {
         const { sessionId, taskId } = params;
         const sessionValidation = validateSession(sessionId);
         if (!sessionValidation.isValid)
@@ -234,7 +257,13 @@ function createChecklistServer() {
         };
     });
     const getAllTasksInputSchema = zod_1.z.object({ sessionId: zod_1.z.string().min(1) });
-    server.tool("get_all_tasks", "Retrieves the complete hierarchical list of tasks.", getAllTasksInputSchema.shape, async (params) => {
+    const getAllTasksDescription = `
+Retrieves the complete hierarchical list of tasks for a given session and displays it as a formatted tree.
+
+Input:
+- sessionId (string, required): The unique identifier for the user's session to retrieve tasks from.
+`;
+    server.tool("get_all_tasks", getAllTasksDescription, getAllTasksInputSchema.shape, async (params) => {
         const { sessionId } = params;
         const sessionValidation = validateSession(sessionId);
         if (!sessionValidation.isValid)
@@ -250,7 +279,17 @@ function createChecklistServer() {
         work_description: zod_1.z.string().min(1),
         sessionId: zod_1.z.string().optional(),
     });
-    server.tool("save_current_work_info", "Saves current work information.", saveCurrentWorkInfoInputSchema.shape, async (params) => {
+    const saveCurrentWorkInfoDescription = `
+Saves a snapshot of the current work session, including a detailed context document and a brief, searchable description.
+
+A unique 'workId' is generated for each saved entry, which can be used later to retrieve the full details. This tool is intended to capture all necessary information to relay the current work to another LLM session, ensuring no loss of context or progress.
+
+Input:
+- work_summarize (string, required): A detailed, comprehensive document containing all necessary context, code, and progress to continue the work in a different session. This should be thorough enough to prevent information loss.
+- work_description (string, required): A short, concise summary (around 100 characters) of the work. This description is used for easy searching and retrieval of the saved work info.
+- sessionId (string, optional): If provided, the current state of the task list for this session will be saved along with the work info.
+`;
+    server.tool("save_current_work_info", saveCurrentWorkInfoDescription, saveCurrentWorkInfoInputSchema.shape, async (params) => {
         const { work_summarize, work_description, sessionId } = params;
         let workId;
         if (sessionId && sessionToWorkIdMap.has(sessionId)) {
@@ -283,7 +322,14 @@ function createChecklistServer() {
         }
         return { content: responseMessages.map(text => ({ type: 'text', text })) };
     });
-    server.tool("get_recent_works_info", "Retrieves a list of recent work information entries.", {}, async () => {
+    const getRecentWorksInfoDescription = `
+Retrieves a summary list of the most recently saved work information entries.
+
+This tool is useful for quickly viewing past work without retrieving all the details. The output includes the 'workId' for each entry, which can then be used with the 'get_work_by_id' tool to fetch complete information.
+
+Input: None
+`;
+    server.tool("get_recent_works_info", getRecentWorksInfoDescription, {}, async () => {
         const recentWorks = workInfoCache.getRecentList();
         const worksJson = JSON.stringify({ works: recentWorks }, null, 2);
         const hint = "If you find the required work info in the list above, please extract the workId and call the `get_work_by_id` tool to get detailed information.";
@@ -295,7 +341,15 @@ function createChecklistServer() {
         };
     });
     const getWorkByIdInputSchema = zod_1.z.object({ workId: zod_1.z.string().regex(/^\d{8}$/, "workId must be an 8-digit string") });
-    server.tool("get_work_by_id", "Gets work information by its ID.", getWorkByIdInputSchema.shape, async (params) => {
+    const getWorkByIdDescription = `
+Retrieves the full, detailed information for a single work session using its unique workId.
+
+This includes the work summary, detailed description, and the complete snapshot of the associated task list (if it was saved).
+
+Input:
+- workId (string, required): The 8-digit unique identifier for the work entry, obtained from 'save_current_work_info' or 'get_recent_works_info'.
+`;
+    server.tool("get_work_by_id", getWorkByIdDescription, getWorkByIdInputSchema.shape, async (params) => {
         const { workId } = params;
         const workInfo = workInfoCache.get(workId);
         if (!workInfo)
