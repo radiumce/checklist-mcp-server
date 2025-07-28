@@ -8,48 +8,17 @@
  * @returns A valid task ID string
  */
 export function generateTaskId(): string {
-  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_@#$%&+=!.';
+  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_';
   
-  // Generate random length between 3-8 characters (keeping reasonable default range for usability)
-  // While the validation allows 1-20 characters, we generate shorter IDs for better user experience
-  const length = Math.floor(Math.random() * 6) + 3; // 3 to 8 characters
+  // Generate random length between 8-12 characters
+  const length = Math.floor(Math.random() * 5) + 8;
   let id = '';
   
   for (let i = 0; i < length; i++) {
-    // Any character from the allowed set
     id += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   
-  // Since our validation is now very permissive, generated IDs should always be valid
-  // But we still validate as a safety check
-  if (!validateTaskId(id)) {
-    // This should rarely happen, but provide a fallback
-    return 'task' + Math.floor(Math.random() * 1000);
-  }
-  
   return id;
-}
-
-/**
- * Validates that a task ID meets the format requirements
- * @param id The task ID to validate
- * @returns true if the ID is valid, false otherwise
- */
-export function validateTaskId(id: string): boolean {
-  // Check length (1-20 characters, allowing more flexibility)
-  if (id.length < 1 || id.length > 20) {
-    return false;
-  }
-  
-  // Allow letters, numbers, and common symbols
-  // Excluding only characters that might cause issues in paths or parsing: / \ : * ? " < > |
-  const validCharsRegex = /^[a-zA-Z0-9\-_@#$%&+=!.]+$/;
-  if (!validCharsRegex.test(id)) {
-    return false;
-  }
-  
-  // No additional restrictions - pure numbers, symbols, etc. are all allowed
-  return true;
 }
 
 /**

@@ -6,6 +6,7 @@ import pino from 'pino';
 const logger = pino({ level: 'info' }, pino.destination(2)); // 2 is stderr file descriptor
 
 // Import work info utilities
+import { WorkInfo } from './types/workInfo';
 import { WorkInfoLRUCache } from './utils/workInfoLRUCache';
 import { WorkIdGenerator } from './utils/workIdGenerator';
 import { 
@@ -13,15 +14,48 @@ import {
   validateGetWorkByIdInput,
   createTimestamp 
 } from './utils/workInfoValidation';
-import { WorkInfo } from './types/workInfo';
-import { validateTaskId } from './utils/taskIdGenerator';
 
-// Define the hierarchical Task structure
+// Final, validated Task structure
 export interface Task {
-  taskId: string;     
+  taskId: string;
   description: string;
   status: 'TODO' | 'DONE';
   children?: Task[];
+}
+
+// A separate type for input validation, where status is optional
+interface InputTask {
+  taskId: string;
+  description: string;
+  status?: 'TODO' | 'DONE';
+  children?: InputTask[];
+}
+
+// Recursive Zod schema for the InputTask type
+const inputTaskSchema: z.ZodType<InputTask> = z.lazy(() =>
+  z.object({
+    taskId: z.string().min(1).regex(/^[a-zA-Z0-9_-]+$/, {
+      message: "Task 'taskId' format is invalid. Only alphanumeric characters, hyphens, and underscores are allowed.",
+    }),
+    description: z.string().min(1),
+    status: z.enum(['TODO', 'DONE']).optional(),
+    children: z.array(inputTaskSchema).optional(),
+  })
+);
+
+// This function recursively transforms InputTask[] to Task[], setting default status
+function setDefaultStatusRecursively(tasks: InputTask[]): Task[] {
+  return tasks.map(inputTask => {
+    const newTask: Task = {
+      taskId: inputTask.taskId,
+      description: inputTask.description,
+      status: inputTask.status ?? 'TODO',
+    };
+    if (inputTask.children) {
+      newTask.children = setDefaultStatusRecursively(inputTask.children);
+    }
+    return newTask;
+  });
 }
 
 // In-memory store for tasks, keyed by sessionId
@@ -46,6 +80,10 @@ function validateSession(sessionId: string): { isValid: boolean; error?: string 
   return { isValid: true };
 }
 
+function validateTaskId(taskId: string): boolean {
+  return /^[a-zA-Z0-9._-]+$/.test(taskId);
+}
+
 function validatePath(path: string): { isValid: boolean; normalizedPath?: string; error?: string } {
   if (path === null || path === undefined) return { isValid: true, normalizedPath: '/' };
   if (typeof path !== 'string') return { isValid: false, error: 'Path must be a string' };
@@ -61,48 +99,6 @@ function validatePath(path: string): { isValid: boolean; normalizedPath?: string
     }
   }
   return { isValid: true, normalizedPath };
-}
-
-function validateTaskData(task: any, context: string = ''): { isValid: boolean; errors: string[] } {
-  const errors: string[] = [];
-  const contextPrefix = context ? `${context}: ` : '';
-  if (!task || typeof task !== 'object' || Array.isArray(task)) {
-    errors.push(`${contextPrefix}Task must be a valid object`);
-    return { isValid: false, errors };
-  }
-  if (!task.taskId) errors.push(`${contextPrefix}Task is missing required field 'taskId'`);
-  else if (typeof task.taskId !== 'string') errors.push(`${contextPrefix}Task 'taskId' must be a string`);
-  else if (!validateTaskId(task.taskId)) errors.push(`${contextPrefix}Task 'taskId' format is invalid: '${task.taskId}'`);
-  if (!task.description) errors.push(`${contextPrefix}Task is missing required field 'description'`);
-  else if (typeof task.description !== 'string') errors.push(`${contextPrefix}Task 'description' must be a string`);
-  else if (task.description.trim().length === 0) errors.push(`${contextPrefix}Task 'description' cannot be empty`);
-  else if (task.description.length > 1000) errors.push(`${contextPrefix}Task 'description' is too long`);
-  if (!task.status) errors.push(`${contextPrefix}Task is missing required field 'status'`);
-  else if (task.status !== 'TODO' && task.status !== 'DONE') errors.push(`${contextPrefix}Task 'status' must be either 'TODO' or 'DONE'`);
-  if (task.children !== undefined) {
-    if (!Array.isArray(task.children)) errors.push(`${contextPrefix}Task 'children' must be an array`);
-    else task.children.forEach((child: any, index: number) => {
-      errors.push(...validateTaskData(child, `${context}.children[${index}]`).errors);
-    });
-  }
-  return { isValid: errors.length === 0, errors };
-}
-
-function validateTasksArray(tasks: any, context: string = ''): { isValid: boolean; errors: string[] } {
-  const errors: string[] = [];
-  if (!Array.isArray(tasks)) {
-    errors.push(`${context}: Tasks must be an array`);
-    return { isValid: false, errors };
-  }
-  const taskIds = new Set<string>();
-  tasks.forEach((task, index) => {
-    errors.push(...validateTaskData(task, `${context}.task[${index}]`).errors);
-    if (task?.taskId) {
-      if (taskIds.has(task.taskId)) errors.push(`${context}: Duplicate task ID '${task.taskId}'`);
-      else taskIds.add(task.taskId);
-    }
-  });
-  return { isValid: errors.length === 0, errors };
 }
 
 function logError(operation: string, error: any, context: Record<string, any> = {}) {
@@ -184,34 +180,59 @@ export function createChecklistServer(): McpServer {
   const updateTasksInputSchema = z.object({
     sessionId: z.string().min(1),
     path: z.string().default('/'),
-    tasks: z.array(z.object({
-      taskId: z.string().min(1),
-      description: z.string().min(1),
-      status: z.enum(['TODO', 'DONE']).default('TODO'),
-      children: z.array(z.any()).optional(),
-    })),
+    tasks: z.array(inputTaskSchema), // Validate against the input schema
   });
   type UpdateTasksInput = z.infer<typeof updateTasksInputSchema>;
 
   server.tool("update_tasks", "Updates tasks at a specific hierarchy level.", updateTasksInputSchema.shape, async (params: UpdateTasksInput) => {
-    const { sessionId, path, tasks } = params;
+    const validationResult = updateTasksInputSchema.safeParse(params);
+    if (!validationResult.success) {
+      const errorMessages = validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`);
+      return { content: [{ type: "text", text: `Error: Invalid input:\n${errorMessages.join('\n')}` }] };
+    }
+
+    const { sessionId, path, tasks: inputTasks } = validationResult.data;
+
+    // After validation, manually transform the tasks to set default status
+    const transformedTasks = setDefaultStatusRecursively(inputTasks);
+
+    // Manually check for duplicate task IDs in the input
+    const taskIds = new Set<string>();
+    function findDuplicates(tasks: Task[]): string | null {
+      for (const task of tasks) {
+        if (taskIds.has(task.taskId)) {
+          return task.taskId;
+        }
+        taskIds.add(task.taskId);
+        if (task.children) {
+          const duplicate = findDuplicates(task.children);
+          if (duplicate) return duplicate;
+        }
+      }
+      return null;
+    }
+
+    const duplicateId = findDuplicates(transformedTasks);
+    if (duplicateId) {
+      return { content: [{ type: 'text', text: `Error: Duplicate task ID '${duplicateId}' found in the request.` }] };
+    }
+
     const sessionValidation = validateSession(sessionId);
     if (!sessionValidation.isValid) return { content: [{ type: "text", text: `Error: ${sessionValidation.error}` }] };
+
     const pathValidation = validatePath(path);
     if (!pathValidation.isValid) return { content: [{ type: "text", text: `Error: ${pathValidation.error}` }] };
-    const tasksValidation = validateTasksArray(tasks, 'update_tasks');
-    if (!tasksValidation.isValid) return { content: [{ type: "text", text: `Error: Invalid task data:\n${tasksValidation.errors.join('\n')}` }] };
+
     let sessionTasks = taskStore.get(sessionId) || [];
-    const updatedTasks = updateTasksAtPath(sessionTasks, pathValidation.normalizedPath || path, tasks as Task[]);
+    const updatedTasks = updateTasksAtPath(sessionTasks, pathValidation.normalizedPath || path, transformedTasks);
     taskStore.set(sessionId, updatedTasks);
+
     const treeView = updatedTasks.length > 0 ? formatTaskTree(updatedTasks) : "No tasks";
     const pathInfo = (path && path !== '/') ? ` at path '${path}'` : '';
-    const responseMessage = `Successfully updated ${tasks.length} tasks${pathInfo} for session ${sessionId}.`;
-    const treeViewMessage = `Complete task hierarchy:\n${treeView}`.trim();
-    return { 
+    return {
       content: [
-        { type: "text", text: responseMessage },
-        { type: "text", text: treeViewMessage }
+        { type: "text", text: `Successfully updated ${inputTasks.length} tasks${pathInfo} for session ${sessionId}.` },
+        { type: "text", text: `Complete task hierarchy:\n${treeView}` }
       ]
     };
   });
@@ -235,9 +256,9 @@ export function createChecklistServer(): McpServer {
     targetTask.status = 'DONE';
     taskStore.set(sessionId, sessionTasks);
     const treeView = formatTaskTree(sessionTasks);
-    return {
+    return { 
       content: [
-        { type: "text", text: `Task '${taskId}' marked as DONE` },
+        { type: 'text', text: `Successfully marked task ${taskId} as DONE` },
         { type: "text", text: `Complete task hierarchy:\n${treeView}` }
       ]
     };

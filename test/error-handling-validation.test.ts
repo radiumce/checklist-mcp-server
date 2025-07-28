@@ -63,17 +63,20 @@ async function runErrorHandlingTests() {
 
         // Test 3: Invalid task data structure
         console.log("Testing invalid task data structure...");
-        const invalidTaskResult = await client.callTool({ 
-            name: 'update_tasks', 
-            arguments: { 
-                sessionId: "test-session", 
-                path: "/",
-                tasks: [{ taskId: "task/invalid", description: "Invalid ID with forbidden character" }] // Invalid: taskId contains forbidden character
-            } as unknown as { [x: string]: unknown }
-        });
-        const invalidTaskText = (invalidTaskResult as ToolSuccessResponse).content[0].text;
-        console.log(`Invalid task data response: ${invalidTaskText}`);
-        assert(invalidTaskText.includes("Task 'taskId' format is invalid"), "Should validate task ID format");
+        try {
+            await client.callTool({ 
+                name: 'update_tasks', 
+                arguments: { 
+                    sessionId: "test-session", 
+                    path: "/",
+                    tasks: [{ taskId: "task/invalid", description: "Invalid ID with forbidden character" }]
+                } as unknown as { [x: string]: unknown }
+            });
+            assert.fail("Should have thrown an error for invalid task ID format");
+        } catch (error: any) {
+            console.log(`Invalid task data error (expected): ${error.message}`);
+            assert(error.message.includes("Task 'taskId' format is invalid"), "Should validate task ID format");
+        }
         console.log("Invalid task data structure test PASSED.");
 
         // Test 4: Duplicate task IDs

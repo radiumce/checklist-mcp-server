@@ -4,6 +4,7 @@
  */
 
 import { generateTaskId, generateMultipleTaskIds, createUniqueIdGenerator } from '../utils/taskIdGenerator';
+import { Task } from '../server';
 
 // Re-export ID generation functions for tests
 export { generateTaskId, generateMultipleTaskIds, createUniqueIdGenerator };
@@ -21,23 +22,18 @@ export interface TestTaskInput {
 /**
  * Interface for final task with generated IDs
  */
-export interface TaskInput {
-  taskId: string;
-  description: string;
-  status?: 'TODO' | 'DONE';
-  children?: TaskInput[];
-}
+
 
 /**
  * Creates test tasks with automatically generated valid task IDs
  * @param tasks Array of test task definitions
  * @returns Array of tasks with valid generated IDs
  */
-export function createTestTasks(tasks: TestTaskInput[]): TaskInput[] {
+export function createTestTasks(tasks: TestTaskInput[]): Task[] {
   const idGenerator = createUniqueIdGenerator();
   
-  function processTask(task: TestTaskInput): TaskInput {
-    const processedTask: TaskInput = {
+    function processTask(task: TestTaskInput): Task {
+        const processedTask: Task = {
       taskId: task.taskId || idGenerator(),
       description: task.description,
       status: task.status || 'TODO'
@@ -59,7 +55,7 @@ export function createTestTasks(tasks: TestTaskInput[]): TaskInput[] {
  * @param status Task status (defaults to TODO)
  * @returns Task with generated ID
  */
-export function createSimpleTask(description: string, status: 'TODO' | 'DONE' = 'TODO'): TaskInput {
+export function createSimpleTask(description: string, status: 'TODO' | 'DONE' = 'TODO'): Task {
   return {
     taskId: generateTaskId(),
     description,
@@ -76,7 +72,7 @@ export function createSimpleTask(description: string, status: 'TODO' | 'DONE' = 
 export function createHierarchicalTask(
   rootDescription: string, 
   childDescriptions: string[]
-): TaskInput {
+): Task {
   const idGenerator = createUniqueIdGenerator();
   
   return {
@@ -96,7 +92,7 @@ export function createHierarchicalTask(
  * @param descriptions Array of task descriptions
  * @returns Array of tasks with generated IDs
  */
-export function createMultipleTasks(descriptions: string[]): TaskInput[] {
+export function createMultipleTasks(descriptions: string[]): Task[] {
   const ids = generateMultipleTaskIds(descriptions.length);
   
   return descriptions.map((desc, index) => ({

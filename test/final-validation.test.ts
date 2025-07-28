@@ -4,7 +4,8 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import path from 'path';
 import assert from 'assert';
-import { createTestTasks, createSimpleTask, createHierarchicalTask, createMultipleTasks, generateTestSessionId, type TaskInput } from '../src/test-utils/testHelpers';
+import { createTestTasks, createSimpleTask, createHierarchicalTask, createMultipleTasks, generateTestSessionId } from '../src/test-utils/testHelpers';
+import type { Task } from '../src/server';
 
 // Path to the compiled server script
 const serverScriptPath = path.resolve(__dirname, '../dist/mcp-server.js');
