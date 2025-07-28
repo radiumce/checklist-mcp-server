@@ -8,7 +8,7 @@ describe('get_all_tasks tool with tree formatting', () => {
 
   beforeAll(async () => {
     // Start the server process
-    serverProcess = spawn('node', [join(__dirname, '../dist/server.js')], {
+    serverProcess = spawn('node', [join(__dirname, '../dist/mcp-server.js')], {
       stdio: ['pipe', 'pipe', 'pipe']
     });
 

@@ -7,7 +7,7 @@ import assert from 'assert';
 import { createTestTasks, createSimpleTask, createHierarchicalTask, createMultipleTasks, generateTestSessionId, type TaskInput } from '../src/test-utils/testHelpers';
 
 // Path to the compiled server script
-const serverScriptPath = path.resolve(__dirname, '../dist/server.js');
+const serverScriptPath = path.resolve(__dirname, '../dist/mcp-server.js');
 const serverCommand = 'node';
 const serverArgs = [serverScriptPath];
 

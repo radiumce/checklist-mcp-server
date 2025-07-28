@@ -9,7 +9,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import path from 'path';
 
 // Path to the compiled server script
-const serverScriptPath = path.resolve(__dirname, '../dist/server.js');
+const serverScriptPath = path.resolve(__dirname, '../dist/mcp-server.js');
 const serverCommand = 'node';
 const serverArgs = [serverScriptPath];
 

@@ -9,7 +9,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import path from 'path';
 
 // Path to the compiled server script
-const serverScriptPath = path.resolve(__dirname, '../dist/server.js');
+const serverScriptPath = path.resolve(__dirname, '../dist/mcp-server.js');
 const serverCommand = 'node';
 const serverArgs = [serverScriptPath];
 
@@ -56,7 +56,7 @@ async function testGetWorkById() {
     });
 
     const saveResponse1 = saveResult1 as ToolSuccessResponse;
-    const workIdMatch1 = saveResponse1.content[0].text.match(/ID: (\d{8})/);
+    const workIdMatch1 = saveResponse1.content[0].text.match(/workId: (\d{8})/);
     if (!workIdMatch1) {
       throw new Error('Failed to extract workId from first save response');
     }
@@ -102,7 +102,7 @@ async function testGetWorkById() {
     });
 
     const saveResponse2 = saveResult2 as ToolSuccessResponse;
-    const workIdMatch2 = saveResponse2.content[0].text.match(/ID: (\d{8})/);
+    const workIdMatch2 = saveResponse2.content[0].text.match(/workId: (\d{8})/);
     if (!workIdMatch2) {
       throw new Error('Failed to extract workId from second save response');
     }
@@ -233,19 +233,20 @@ async function testGetWorkById() {
     }
 
     // Test invalid workId format
-    const invalidResult = await client.callTool({ 
-      name: "get_work_by_id", 
-      arguments: {
-        workId: "invalid123"
-      } as { [x: string]: unknown }
-    });
-
-    const invalidResponse = invalidResult as ToolSuccessResponse;
-    console.log('Invalid workId response:', invalidResponse.content[0].text);
-
-    // Verify error message format
-    if (!invalidResponse.content[0].text.includes('Error: Input validation failed')) {
-      throw new Error('Expected input validation error message');
+    try {
+      await client.callTool({ 
+        name: "get_work_by_id", 
+        arguments: {
+          workId: "invalid123"
+        } as { [x: string]: unknown }
+      });
+      throw new Error('Test failed: Invalid workId format should have thrown an exception');
+    } catch (error: any) {
+      if (error.code === -32602) {
+        console.log('✓ Received expected input validation error for invalid workId format');
+      } else {
+        throw new Error(`Unexpected error for invalid workId format: ${error.message}`);
+      }
     }
 
     console.log('✓ Input validation working correctly');

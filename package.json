@@ -2,17 +2,20 @@
   "name": "checklist-mcp-server",
   "version": "1.0.1",
   "description": "An MCP server to manage checklists.",
-  "main": "dist/server.js",
+  "main": "dist/mcp-server.js",
   "bin": {
-    "checklist-mcp-server": "dist/server.js"
+    "checklist-mcp-server": "dist/mcp-server.js"
   },
   "scripts": {
     "build": "tsc",
-    "start": "node dist/server.js",
-    "dev": "ts-node src/server.ts",
+    "start": "node dist/mcp-server.js",
+    "dev": "ts-node src/mcp-server.ts",
     "test": "npm run build && npx ts-node test/all-tests.ts",
     "test:core": "npx ts-node test/core-functionality.test.ts",
-    "test:integration": "npm run build && npx ts-node test/run_tests.ts"
+    "test:integration": "npm run build && npx ts-node test/run_tests.ts",
+    "start:http": "npm run build && node dist/http-server.js",
+    "dev:http": "ts-node src/http-server.ts",
+    "test:http": "npm run build && npx ts-node test/http-integration.test.ts"
   },
   "keywords": [
     "mcp",
@@ -22,11 +25,15 @@
   "license": "ISC",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.11.0",
+    "express": "^5.1.0",
     "pino": "^9.6.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/jest": "^30.0.0",
     "@types/node": "^20.17.41",
+    "jest": "^30.0.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.4.5"
   }

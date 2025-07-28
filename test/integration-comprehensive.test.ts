@@ -7,7 +7,7 @@ import assert from 'assert';
 import { createTestTasks, createSimpleTask, createHierarchicalTask, createMultipleTasks, generateTestSessionId, type TaskInput } from '../src/test-utils/testHelpers';
 
 // Path to the compiled server script
-const serverScriptPath = path.resolve(__dirname, '../dist/server.js');
+const serverScriptPath = path.resolve(__dirname, '../dist/mcp-server.js');
 const serverCommand = 'node';
 const serverArgs = [serverScriptPath];
 
@@ -443,19 +443,16 @@ class IntegrationTestSuite {
       }
 
       // Test large hierarchy (performance validation) using test helpers
-      const largeTaskDescriptions = [];
-      for (let i = 1; i <= 20; i++) {
-        largeTaskDescriptions.push({
-          description: `Task number ${i}`,
-          status: 'TODO' as const,
+      const largeTasks = createTestTasks(
+        Array.from({ length: 20 }, (_, i) => ({
+          description: `Task number ${i + 1}`,
+          status: 'TODO',
           children: [
-            { description: `Subtask ${i}A`, status: 'TODO' as const },
-            { description: `Subtask ${i}B`, status: 'TODO' as const }
-          ]
-        });
-      }
-
-      const largeTasks = createTestTasks(largeTaskDescriptions);
+            { description: `Subtask ${i + 1}A`, status: 'TODO' },
+            { description: `Subtask ${i + 1}B`, status: 'TODO' },
+          ],
+        }))
+      );
 
       const largeResult = await this.callTool('update_tasks', {
         sessionId,

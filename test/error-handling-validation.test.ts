@@ -3,7 +3,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import path from 'path';
 import assert from 'assert';
 
-const serverScriptPath = path.resolve(__dirname, '../dist/server.js');
+const serverScriptPath = path.resolve(__dirname, '../dist/mcp-server.js');
 const serverCommand = 'node';
 const serverArgs = [serverScriptPath];
 
@@ -57,7 +57,7 @@ async function runErrorHandlingTests() {
             assert(false, "Should have thrown an error for empty session ID");
         } catch (error: any) {
             console.log(`Empty session error (expected): ${error.message}`);
-            assert(error.message.includes("sessionId cannot be empty"), "Should validate empty session ID");
+            assert(error.message.includes("String must contain at least 1 character(s)"), "Should validate empty session ID");
             console.log("Empty session ID test PASSED.");
         }
 

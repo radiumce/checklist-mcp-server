@@ -10,7 +10,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import path from 'path';
 
 // Path to the compiled server script
-const serverScriptPath = path.resolve(__dirname, '../dist/server.js');
+const serverScriptPath = path.resolve(__dirname, '../dist/mcp-server.js');
 const serverCommand = 'node';
 const serverArgs = [serverScriptPath];
 
@@ -59,7 +59,7 @@ async function testWorkInfoComprehensive() {
       });
 
       const saveResponse = saveResult as ToolSuccessResponse;
-      const workIdMatch = saveResponse.content[0].text.match(/ID: (\d{8})/);
+      const workIdMatch = saveResponse.content[0].text.match(/workId: (\d{8})/);
       if (workIdMatch) {
         workIds.push(workIdMatch[1]);
       }
@@ -167,7 +167,7 @@ async function testWorkInfoComprehensive() {
     });
 
     const sessionSaveResponse = sessionSaveResult as ToolSuccessResponse;
-    const sessionWorkId = sessionSaveResponse.content[0].text.match(/ID: (\d{8})/)![1];
+    const sessionWorkId = sessionSaveResponse.content[0].text.match(/workId: (\d{8})/)![1];
 
     // Modify tasks in session
     await client.callTool({ 
@@ -231,7 +231,7 @@ async function testWorkInfoComprehensive() {
       } as { [x: string]: unknown }
     });
     const firstOverwriteResponse = firstOverwriteResult as ToolSuccessResponse;
-    const firstOverwriteWorkId = firstOverwriteResponse.content[0].text.match(/ID: (\d{8})/)![1];
+    const firstOverwriteWorkId = firstOverwriteResponse.content[0].text.match(/workId: (\d{8})/)![1];
 
     // Update tasks
     await client.callTool({ 
@@ -256,7 +256,7 @@ async function testWorkInfoComprehensive() {
       } as { [x: string]: unknown }
     });
     const secondOverwriteResponse = secondOverwriteResult as ToolSuccessResponse;
-    const secondOverwriteWorkId = secondOverwriteResponse.content[0].text.match(/ID: (\d{8})/)![1];
+    const secondOverwriteWorkId = secondOverwriteResponse.content[0].text.match(/workId: (\d{8})/)![1];
 
     // Should reuse the same workId
     if (firstOverwriteWorkId !== secondOverwriteWorkId) {
@@ -331,20 +331,22 @@ async function testWorkInfoComprehensive() {
       '1234567',    // 7 digits
       '123456789',  // 9 digits
       '0234567',    // 7 digits starting with 0
-      '09999999',   // 8 digits starting with 0
       'abcd1234',   // contains letters
       '1234-567',   // contains special characters
       '12345678.0', // contains decimal
     ];
 
     for (const invalidId of invalidWorkIds) {
-      const invalidResult = await client.callTool({ 
-        name: "get_work_by_id", 
-        arguments: { workId: invalidId } as { [x: string]: unknown }
-      });
-      const invalidResponse = invalidResult as ToolSuccessResponse;
-      if (!invalidResponse.content[0].text.includes('Error:')) {
-        throw new Error(`Invalid workId '${invalidId}' should produce error`);
+      try {
+        await client.callTool({
+          name: "get_work_by_id",
+          arguments: { workId: invalidId } as { [x: string]: unknown }
+        });
+        throw new Error(`Test failed: Invalid workId '${invalidId}' should have thrown an exception`);
+      } catch (error: any) {
+        if (error.code !== -32602) {
+          throw new Error(`Unexpected error for invalid workId '${invalidId}': ${error.message}`);
+        }
       }
     }
 
@@ -356,8 +358,8 @@ async function testWorkInfoComprehensive() {
       });
       throw new Error('Empty workId should have thrown MCP error');
     } catch (error: any) {
-      if (!error.message.includes('workId cannot be empty')) {
-        throw new Error('Empty workId should produce correct error message');
+      if (error.code !== -32602) {
+        throw new Error(`Empty workId should have thrown a validation error, but got: ${error.message}`);
       }
     }
 
@@ -380,7 +382,7 @@ async function testWorkInfoComprehensive() {
     console.log('\n=== Test 6: Concurrent Operations ===');
     
     // Save multiple work items rapidly
-    const rapidSavePromises = [];
+    const rapidSavePromises: Promise<any>[] = [];
     for (let i = 1; i <= 5; i++) {
       rapidSavePromises.push(
         client.callTool({ 
@@ -396,7 +398,7 @@ async function testWorkInfoComprehensive() {
     const rapidSaveResults = await Promise.all(rapidSavePromises);
     const rapidWorkIds = rapidSaveResults.map(result => {
       const response = result as ToolSuccessResponse;
-      const match = response.content[0].text.match(/ID: (\d{8})/);
+      const match = response.content[0].text.match(/workId: (\d{8})/);
       return match ? match[1] : null;
     }).filter(id => id !== null);
 

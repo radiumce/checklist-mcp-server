@@ -5,7 +5,7 @@ import assert from 'assert'; // Using Node's built-in assert module
 
 // Path to the compiled server script
 // Ensure the server is compiled (e.g., using `npm run build`) before running tests.
-const serverScriptPath = path.resolve(__dirname, '../dist/server.js');
+const serverScriptPath = path.resolve(__dirname, '../dist/mcp-server.js');
 const serverCommand = 'node';
 const serverArgs = [serverScriptPath];
 

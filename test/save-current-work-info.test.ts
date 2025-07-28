@@ -9,7 +9,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import path from 'path';
 
 // Path to the compiled server script
-const serverScriptPath = path.resolve(__dirname, '../dist/server.js');
+const serverScriptPath = path.resolve(__dirname, '../dist/mcp-server.js');
 const serverCommand = 'node';
 const serverArgs = [serverScriptPath];
 
@@ -57,7 +57,7 @@ async function testSaveCurrentWorkInfo() {
     console.log('Basic save result:', basicResponse.content[0].text);
     
     // Extract workId from response
-    const workIdMatch = basicResponse.content[0].text.match(/ID: (\d{8})/);
+    const workIdMatch = basicResponse.content[0].text.match(/workId: (\d{8})/);
     if (!workIdMatch) {
       throw new Error('Failed to extract workId from response');
     }
@@ -115,7 +115,7 @@ async function testSaveCurrentWorkInfo() {
 
     const sessionWithTasksResponse = sessionWithTasksResult as ToolSuccessResponse;
     console.log('Session with tasks result:', sessionWithTasksResponse.content[0].text);
-    console.log('Session association message:', sessionWithTasksResponse.content[2].text);
+    console.log('Session association message:', sessionWithTasksResponse.content[1].text);
 
     // Test 4: Test sessionId overwrite behavior
     console.log('\nTesting sessionId overwrite behavior...');
