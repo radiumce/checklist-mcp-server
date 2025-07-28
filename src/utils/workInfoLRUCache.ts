@@ -41,22 +41,20 @@ export class WorkInfoLRUCache {
     
     logger.debug({ workId, description: workInfo.work_description }, 'Setting work info in cache');
 
-    // Check if entry already exists
     const exists = this.cache.has(workId);
     
+    // Always set the new value, whether it's an update or a new entry
+    this.cache.set(workId, workInfo);
+
     if (exists) {
-      // Update existing entry and move to most recent
-      this.cache.set(workId, workInfo);
+      // If it existed, just update its access order
       this.updateAccessOrder(workId);
       logger.debug({ workId }, 'Updated existing work info entry');
     } else {
-      // Check if we need to evict before adding new entry
-      if (this.cache.size >= this.maxSize) {
+      // If it's a new entry, check for eviction and add to access order
+      if (this.cache.size > this.maxSize) {
         this.evictLRU();
       }
-      
-      // Add new entry
-      this.cache.set(workId, workInfo);
       this.accessOrder.push(workId);
       logger.debug({ workId, cacheSize: this.cache.size }, 'Added new work info entry');
     }
@@ -75,7 +73,8 @@ export class WorkInfoLRUCache {
       // Update access order to mark as most recently used
       this.updateAccessOrder(workId);
       logger.debug({ workId }, 'Retrieved work info from cache');
-      return workInfo;
+      // Return a deep copy to prevent modification of the cached object
+      return JSON.parse(JSON.stringify(workInfo));
     }
     
     logger.debug({ workId }, 'Work info not found in cache');

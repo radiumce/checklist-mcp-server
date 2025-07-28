@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+
+import assert from 'assert';
 /**
  * Comprehensive Work Info Functionality Test
  * Tests all work info features together including edge cases, error handling,
@@ -68,16 +70,16 @@ async function testWorkInfoComprehensive() {
     console.log(`Created ${workIds.length} work items`);
 
     // Get recent works - should only have 10 items (LRU capacity)
-    const recentResult = await client.callTool({ 
+    const recentWorksResult = await client.callTool({ 
       name: "get_recent_works_info", 
       arguments: {} as { [x: string]: unknown }
     });
-
-    const recentResponse = recentResult as ToolSuccessResponse;
-    const recentData = JSON.parse(recentResponse.content[0].text);
+    const recentResponse = recentWorksResult as ToolSuccessResponse;
+    const recentWorks = JSON.parse(recentResponse.content[0].text).works;
+    assert(recentResponse.content[1].text.includes('If you find the required work info'), 'Hint message is missing or incorrect.');
     
-    if (recentData.works.length !== 10) {
-      throw new Error(`Expected 10 works in cache, got ${recentData.works.length}`);
+    if (recentWorks.length !== 10) {
+      throw new Error(`Expected 10 works in cache, got ${recentWorks.length}`);
     }
 
     // First 2 work items should be evicted

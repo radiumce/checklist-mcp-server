@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+
+import assert from 'assert';
 /**
  * Test for get_work_by_id MCP tool
  * Tests the implementation of the get_work_by_id tool functionality
@@ -168,8 +170,9 @@ async function testGetWorkById() {
       arguments: {} as { [x: string]: unknown }
     });
     const recentResponse1 = recentResult1 as ToolSuccessResponse;
-    const recentData1 = JSON.parse(recentResponse1.content[0].text);
-    console.log('Recent works before access:', recentData1.works.map((w: any) => w.workId));
+    const recentWorks = JSON.parse(recentResponse1.content[0].text).works;
+    assert(recentResponse1.content[1].text.includes('If you find the required work info'), 'Hint message is missing or incorrect.');
+    console.log('Recent works before access:', recentWorks.map((w: any) => w.workId));
 
     // Access workId1 (should move it to most recent)
     await client.callTool({ 

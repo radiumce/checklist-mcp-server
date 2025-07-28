@@ -477,6 +477,41 @@ class IntegrationTestSuite {
     }
   }
 
+  // Test 7: Verify save_current_work_info overwrite behavior
+  async testWorkInfoOverwrite() {
+    const testName = 'Work Info Overwrite Behavior';
+    try {
+      const sessionId = generateTestSessionId('overwrite-test');
+      const initialDescription = 'Initial work description';
+      const updatedDescription = 'Updated work description';
+
+      // First save
+      const saveResult1 = await this.callTool('save_current_work_info', {
+        sessionId,
+        work_summarize: 'Test summary',
+        work_description: initialDescription
+      });
+      const workId = saveResult1.content[0].text.split(': ')[1];
+
+      // Second save with updated description
+      await this.callTool('save_current_work_info', {
+        sessionId,
+        work_summarize: 'Test summary updated',
+        work_description: updatedDescription
+      });
+
+      // Get the work info and verify it's the updated version
+      const getResult = await this.callTool('get_work_by_id', { workId });
+      const workInfo = JSON.parse(getResult.content[0].text);
+
+      assert.strictEqual(workInfo.work_description, updatedDescription, 'Work info should have been overwritten');
+
+      this.recordTest(testName, true);
+    } catch (error) {
+      this.recordTest(testName, false, error instanceof Error ? error.message : String(error));
+    }
+  }
+
   async runAllTests() {
     console.log('\n🧪 Running Comprehensive Integration Tests');
     console.log('==========================================');
@@ -486,6 +521,7 @@ class IntegrationTestSuite {
     await this.testSessionManagement();
     await this.testToolInteractionPatterns();
     await this.testEdgeCasesAndErrorHandling();
+    await this.testWorkInfoOverwrite();
 
     this.printSummary();
   }

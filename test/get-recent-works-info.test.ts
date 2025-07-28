@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+
+import assert from 'assert';
 /**
  * Test for get_recent_works_info MCP tool
  * Tests the implementation of the get_recent_works_info tool functionality
@@ -49,12 +51,11 @@ async function testGetRecentWorksInfo() {
     }) as ToolSuccessResponse;
 
     console.log('Empty cache result:', JSON.stringify(emptyResult, null, 2));
-    
-    // Parse the response to verify it's valid JSON with empty works array
     const emptyResponse = JSON.parse(emptyResult.content[0].text);
     if (!emptyResponse.works || !Array.isArray(emptyResponse.works) || emptyResponse.works.length !== 0) {
       throw new Error('Empty cache should return empty works array');
     }
+    assert(emptyResult.content[1].text.includes('If you find the required work info'), 'Hint message is missing or incorrect.');
     console.log('✓ Empty cache test passed');
 
     // Test 2: Add some work info entries and test retrieval
@@ -104,6 +105,7 @@ async function testGetRecentWorksInfo() {
     if (!worksResponse.works || !Array.isArray(worksResponse.works)) {
       throw new Error('Response should contain works array');
     }
+    assert(worksResult.content[1].text.includes('If you find the required work info'), 'Hint message is missing or incorrect.');
 
     if (worksResponse.works.length !== 3) {
       throw new Error(`Expected 3 works, got ${worksResponse.works.length}`);

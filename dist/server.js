@@ -285,7 +285,14 @@ function createChecklistServer() {
     });
     server.tool("get_recent_works_info", "Retrieves a list of recent work information entries.", {}, async () => {
         const recentWorks = workInfoCache.getRecentList();
-        return { content: [{ type: "text", text: JSON.stringify({ works: recentWorks }, null, 2) }] };
+        const worksJson = JSON.stringify({ works: recentWorks }, null, 2);
+        const hint = "If you find the required work info in the list above, please extract the workId and call the `get_work_by_id` tool to get detailed information.";
+        return {
+            content: [
+                { type: "text", text: worksJson },
+                { type: "text", text: hint },
+            ],
+        };
     });
     const getWorkByIdInputSchema = zod_1.z.object({ workId: zod_1.z.string().regex(/^\d{8}$/, "workId must be an 8-digit string") });
     server.tool("get_work_by_id", "Gets work information by its ID.", getWorkByIdInputSchema.shape, async (params) => {
