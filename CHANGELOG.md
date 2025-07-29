@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2025-01-29
+
+### Fixed
+- **HTTP client compatibility**: Fixed issue where certain MCP clients would receive `undefined` request body
+- **JSON parsing**: Improved request body parsing using `express.raw()` with manual JSON parsing
+- **Client connection stability**: Enhanced HTTP transport reliability for various client implementations
+
+### Changed
+- Simplified HTTP server implementation by removing verbose debug logging
+- Improved error handling for malformed JSON requests
+- Streamlined server startup process
+
+### Technical Details
+- Replaced `express.json()` middleware with `express.raw()` + manual JSON parsing
+- This resolves compatibility issues with specific MCP client implementations on macOS
+- Maintains full backward compatibility with all existing functionality
+
 ## [1.1.0] - 2025-01-29
 
 ### Added
