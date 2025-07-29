@@ -41,7 +41,13 @@ This directory contains a comprehensive test suite for the Tasklist Enhancement 
    - End-to-end requirement verification
    - Complete system validation
 
-7. **`all-tests.ts`** - Test runner that executes all test suites
+7. **`http-integration.test.ts`** - HTTP transport integration tests
+   - HTTP server startup and connection testing
+   - StreamableHTTPClientTransport validation
+   - All MCP tools over HTTP protocol
+   - Connection cleanup and error handling
+
+8. **`all-tests.ts`** - Test runner that executes all test suites
 
 ## Running Tests
 
@@ -77,6 +83,9 @@ npx ts-node test/integration-comprehensive.test.ts
 
 # Run final validation tests
 npx ts-node test/final-validation.test.ts
+
+# Run HTTP integration tests (requires built server)
+npm run test:http
 ```
 
 ### Running All Tests
@@ -84,6 +93,9 @@ npx ts-node test/final-validation.test.ts
 ```bash
 # Run the complete test suite
 npx ts-node test/all-tests.ts
+
+# Run all tests including HTTP integration
+npm test
 ```
 
 ## Test Coverage
@@ -140,7 +152,9 @@ The test suite validates all requirements from the specification:
 
 ### Test Client Setup
 
-All integration tests use the MCP SDK client to connect to the server:
+#### Stdio Transport Tests (Legacy)
+
+Most integration tests use the MCP SDK client with stdio transport:
 
 ```typescript
 const transport = new StdioClientTransport({
@@ -155,6 +169,25 @@ const client = new Client({
 
 await client.connect(transport);
 ```
+
+#### HTTP Transport Tests
+
+HTTP integration tests use StreamableHTTPClientTransport:
+
+```typescript
+const transport = new StreamableHTTPClientTransport(
+  new URL('http://localhost:8585/mcp')
+);
+
+const client = new Client({
+  name: 'http-integration-test-client',
+  version: '1.0.0'
+});
+
+await client.connect(transport);
+```
+
+**Note**: HTTP tests automatically start and stop the HTTP server during test execution.
 
 ### Test Data Patterns
 

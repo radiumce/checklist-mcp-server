@@ -1,13 +1,14 @@
 # Checklist MCP Server
 
-A Model Context Protocol (MCP) server for hierarchical checklist management with session-based task organization and tree visualization.
+A Model Context Protocol (MCP) server for hierarchical checklist management with session-based task organization and tree visualization, supporting HTTP streamable transport.
 
 ## Overview
 
-The Checklist MCP Server provides a robust solution for managing hierarchical task lists through the Model Context Protocol. It enables AI assistants and other MCP clients to create, update, and track tasks in a structured, tree-like format with support for multiple concurrent sessions. It can significantly enhance the agent's ability to adhere to the task plan during task execution.
+The Checklist MCP Server provides a robust solution for managing hierarchical task lists through the Model Context Protocol. It enables AI assistants and other MCP clients to create, update, and track tasks in a structured, tree-like format with support for multiple concurrent sessions. The server now exclusively supports HTTP streamable transport for better performance and scalability. It can significantly enhance the agent's ability to adhere to the task plan during task execution.
 
 ## Features
 
+- **HTTP Streamable Transport**: Modern HTTP-based communication for better performance and scalability
 - **Hierarchical Task Management**: Create nested task structures with unlimited depth
 - **Session-Based Isolation**: Multiple independent task lists per session
 - **Visual Tree Display**: ASCII tree visualization with status indicators (✓ for DONE, ○ for TODO)
@@ -19,21 +20,141 @@ The Checklist MCP Server provides a robust solution for managing hierarchical ta
 - **Session Association**: Link work information with task sessions to capture task state snapshots
 - **Agent Handoffs**: Enable seamless work context transfer between LLM agents
 
+## ⚠️ Important: Transport Protocol Change
 
-## MCP Configuration
+**This version no longer supports stdio transport.** The server has been migrated to use HTTP streamable transport exclusively for improved performance and better integration with modern MCP clients.
+
+### Migration from stdio to HTTP
+
+If you were previously using stdio configuration:
+
+```json
+// ❌ Old stdio configuration (no longer supported)
+{
+  "mcpServers": {
+    "checklist": {
+      "command": "npx",
+      "args": ["checklist-mcp-server"],
+      "env": {}
+    }
+  }
+}
+```
+
+Update to HTTP configuration:
+
+```json
+// ✅ New HTTP configuration
+{
+  "mcpServers": {
+    "checklist": {
+      "transport": "http",
+      "url": "http://localhost:8585/mcp"
+    }
+  }
+}
+```
+
+
+## Installation and Setup
+
+### Installation
+
+Install the package globally or locally:
+
+```bash
+npm install -g checklist-mcp-server
+# or
+npm install checklist-mcp-server
+```
+
+### Running the HTTP Server
+
+Start the HTTP server on port 8585 (default):
+
+```bash
+# Using global installation
+checklist-mcp-server-http
+
+# Using npm scripts
+npm run start:http
+
+# Using npx
+npx checklist-mcp-server-http
+
+# Custom port
+PORT=3000 npm run start:http
+```
+
+### MCP Configuration
+
+Configure your MCP client to connect to the HTTP server:
 
 ```json
 {
   "mcpServers": {
     "checklist": {
-      "command": "npx",
-      "args": [
-        "checklist-mcp-server"
-      ],
-      "env": {}
+      "transport": "http",
+      "url": "http://localhost:8585/mcp"
     }
   }
 }
+```
+
+**Note**: This server no longer supports stdio transport. All connections must be made via HTTP streamable transport.
+
+## HTTP Server Configuration
+
+### Environment Variables
+
+- `PORT`: Server port (default: 8585)
+- `NODE_ENV`: Environment mode (development/production)
+
+### Server Endpoints
+
+- `POST /mcp`: Main MCP endpoint for all tool calls and protocol communication
+
+### Development Mode
+
+For development with auto-reload:
+
+```bash
+npm run dev:http
+```
+
+### Production Deployment
+
+For production deployment, build the project first:
+
+```bash
+npm run build
+npm run start:http
+```
+
+### Health Check
+
+The server logs startup confirmation:
+```
+Checklist MCP HTTP server running on port 8585
+```
+
+### Client Connection
+
+Use the StreamableHTTPClientTransport from the MCP SDK:
+
+```typescript
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+
+const transport = new StreamableHTTPClientTransport(
+  new URL('http://localhost:8585/mcp')
+);
+const client = new Client({
+  name: 'your-client-name',
+  version: '1.0.0',
+});
+
+await client.connect(transport);
 ```
 
 
@@ -294,6 +415,20 @@ interface WorkInfo {
 #### Basic Task Management
 
 ```javascript
+// Initialize HTTP client
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+
+const transport = new StreamableHTTPClientTransport(
+  new URL('http://localhost:8585/mcp')
+);
+const client = new Client({
+  name: 'task-management-client',
+  version: '1.0.0',
+});
+
+await client.connect(transport);
+
 // Create initial tasks
 await client.callTool({
   name: 'update_tasks',
@@ -333,6 +468,9 @@ await client.callTool({
     sessionId: 'my-project'
   }
 });
+
+// Clean up
+await transport.close();
 ```
 
 #### Hierarchical Updates
@@ -530,3 +668,68 @@ Warning: sessionId 'nonexistent-session' does not exist in task store
 3. **Test incrementally**: Start with simple operations before complex workflows
 4. **Check cache state**: Use `get_recent_works_info` to understand current work cache
 5. **Verify task structure**: Use `get_all_tasks` to confirm session task hierarchy
+6. **HTTP connectivity**: Ensure the server is running and accessible at the configured URL
+7. **Transport cleanup**: Always close HTTP transports properly to avoid connection leaks
+
+## Testing
+
+### Running Tests
+
+The project includes comprehensive test suites for both core functionality and HTTP integration:
+
+```bash
+# Run all tests
+npm test
+
+# Run core functionality tests
+npm run test:core
+
+# Run HTTP integration tests (requires server to be built)
+npm run test:http
+
+# Run integration tests
+npm run test:integration
+```
+
+### HTTP Integration Tests
+
+The HTTP integration tests automatically:
+1. Start the HTTP server on port 8585
+2. Create an HTTP client with StreamableHTTPClientTransport
+3. Test all MCP tools over HTTP
+4. Clean up server and client connections
+
+Example test output:
+```
+🚀 Setting up HTTP Integration Test Suite
+✅ Server started, initializing client...
+🧪 Running HTTP Integration Tests
+✅ PASS update_tasks over HTTP
+✅ PASS get_all_tasks over HTTP  
+✅ PASS mark_task_as_done over HTTP
+🎉 All HTTP integration tests passed!
+```
+
+### Manual Testing with curl
+
+You can also test the HTTP endpoint directly:
+
+```bash
+# Start the server
+npm run start:http
+
+# Test with curl (example MCP request)
+curl -X POST http://localhost:8585/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "get_all_tasks",
+      "arguments": {
+        "sessionId": "test-session"
+      }
+    }
+  }'
+```

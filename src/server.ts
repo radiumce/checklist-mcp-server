@@ -172,7 +172,7 @@ function getTaskPath(tasks: Task[], taskId: string, currentPath: string = ""): s
 export function createChecklistServer(): McpServer {
   const server = new McpServer({
     name: 'checklist-mcp-server',
-    version: '1.0.1',
+    version: '1.1.0',
   });
 
   // --- Tool Definitions ---
