@@ -45,18 +45,32 @@ This version of the Checklist MCP Server has migrated from stdio transport to HT
 }
 ```
 
+**Alternative: Keep using command-based approach with new CLI:**
+```json
+{
+  "mcpServers": {
+    "checklist": {
+      "command": "npx",
+      "args": ["checklist-mcp-server", "stdio"]
+    }
+  }
+}
+```
+
 ### 2. Start the HTTP Server
 
 Before connecting your MCP client, start the HTTP server:
 
 ```bash
-# Install/update the package
-npm install -g checklist-mcp-server@latest
+# Using npx (no installation required)
+npx checklist-mcp-server
 
-# Start the HTTP server
-checklist-mcp-server-http
-# or
-npm run start:http
+# Or install globally first
+npm install -g checklist-mcp-server@latest
+checklist-mcp-server
+
+# Custom port
+npx checklist-mcp-server --port 3000
 ```
 
 ### 3. Verify Connection

@@ -8,21 +8,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.1.0] - 2025-01-29
 
 ### Added
-- HTTP streamable transport support via `StreamableHTTPServerTransport`
+- **npx support**: Direct installation and startup via `npx checklist-mcp-server`
+- **Smart CLI**: New command-line interface (`src/cli.ts`) with help and options
+- **HTTP streamable transport support** via `StreamableHTTPServerTransport`
+- **Port configuration**: `--port` option for custom HTTP server ports
+- **Multiple startup modes**: HTTP (default) and stdio (legacy) modes
 - New HTTP server implementation (`src/http-server.ts`)
 - HTTP integration tests (`test/http-integration.test.ts`)
-- New binary `checklist-mcp-server-http` for HTTP server
+- Multiple binaries: `checklist-mcp-server`, `checklist-mcp-server-http`, `checklist-mcp-server-stdio`
 - Environment variable support for port configuration (`PORT`)
 - Migration guide (`MIGRATION.md`) for stdio to HTTP transition
-- Enhanced documentation with HTTP setup instructions
+- Enhanced documentation with npx usage examples
 
 ### Changed
-- **BREAKING**: Primary transport changed from stdio to HTTP streamable transport
+- **Primary entry point**: `npx checklist-mcp-server` now starts HTTP server by default
+- **Simplified usage**: No installation required with npx
+- **Enhanced CLI**: Interactive help and better error messages
 - Server architecture refactored to support both stdio (legacy) and HTTP transports
 - Updated MCP configuration examples to use HTTP transport
-- Enhanced README with HTTP-specific setup and usage instructions
+- Enhanced README with npx usage examples and simplified setup
 - Updated package description and keywords to reflect HTTP support
-- Version bumped to 1.1.0 to reflect major transport change
+- Version bumped to 1.1.0 to reflect major transport and CLI improvements
 
 ### Deprecated
 - Stdio transport is now considered legacy (still functional but not recommended)
@@ -35,27 +41,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - All existing tools (`update_tasks`, `get_all_tasks`, `mark_task_as_done`, etc.) work identically over HTTP
 - Improved error handling and logging for HTTP requests
 
-### Migration Required
-Users must update their MCP configuration from:
-```json
-{
-  "mcpServers": {
-    "checklist": {
-      "command": "npx",
-      "args": ["checklist-mcp-server"],
-      "env": {}
-    }
-  }
-}
+### Usage Examples
+
+**Quick start with npx (no installation):**
+```bash
+npx checklist-mcp-server                    # HTTP server on port 8585
+npx checklist-mcp-server --port 3000        # HTTP server on port 3000
+npx checklist-mcp-server stdio              # stdio server (legacy)
 ```
 
-To:
+**MCP Configuration Options:**
+
+HTTP transport (recommended):
 ```json
 {
   "mcpServers": {
     "checklist": {
       "transport": "http",
       "url": "http://localhost:8585/mcp"
+    }
+  }
+}
+```
+
+Stdio transport (legacy, still supported):
+```json
+{
+  "mcpServers": {
+    "checklist": {
+      "command": "npx",
+      "args": ["checklist-mcp-server", "stdio"]
     }
   }
 }

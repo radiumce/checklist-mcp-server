@@ -2,21 +2,29 @@
   "name": "checklist-mcp-server",
   "version": "1.1.0",
   "description": "An MCP server for hierarchical checklist management with HTTP streamable transport support.",
-  "main": "dist/mcp-server.js",
+  "main": "dist/cli.js",
   "bin": {
-    "checklist-mcp-server": "dist/mcp-server.js",
-    "checklist-mcp-server-http": "dist/http-server.js"
+    "checklist-mcp-server": "dist/cli.js",
+    "checklist-mcp-server-http": "dist/http-server.js",
+    "checklist-mcp-server-stdio": "dist/mcp-server.js"
   },
   "scripts": {
     "build": "tsc",
-    "start": "node dist/mcp-server.js",
-    "dev": "ts-node src/mcp-server.ts",
+    "start": "node dist/cli.js",
+    "dev": "ts-node src/cli.ts",
+    "start:http": "npm run build && node dist/http-server.js",
+    "start:stdio": "npm run build && node dist/mcp-server.js",
+    "dev:http": "ts-node src/http-server.ts",
+    "dev:stdio": "ts-node src/mcp-server.ts",
     "test": "npm run build && npx ts-node test/all-tests.ts",
     "test:core": "npx ts-node test/core-functionality.test.ts",
     "test:integration": "npm run build && npx ts-node test/run_tests.ts",
-    "start:http": "npm run build && node dist/http-server.js",
-    "dev:http": "ts-node src/http-server.ts",
-    "test:http": "npm run build && npx ts-node test/http-integration.test.ts"
+    "test:http": "npm run build && npx ts-node test/http-integration.test.ts",
+    "verify": "npm run build && node scripts/verify-package.js",
+    "prepublishOnly": "npm run build && npm run verify && npm test",
+    "publish:interactive": "node scripts/publish.js",
+    "publish:check": "node scripts/pre-publish-check.js",
+    "postinstall": "node scripts/postinstall.js"
   },
   "keywords": [
     "mcp",
@@ -24,10 +32,34 @@
     "http",
     "streamable-transport",
     "task-management",
-    "hierarchical"
+    "hierarchical",
+    "model-context-protocol",
+    "ai-assistant",
+    "task-tracker",
+    "npx"
   ],
-  "author": "",
-  "license": "ISC",
+  "files": [
+    "dist/**/*",
+    "scripts/**/*",
+    "README.md",
+    "CHANGELOG.md",
+    "MIGRATION.md",
+    "USAGE_EXAMPLES.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "author": "chene <your.email@example.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chene/checklist-mcp-server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/chene/checklist-mcp-server/issues"
+  },
+  "homepage": "https://github.com/chene/checklist-mcp-server#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.11.0",
     "express": "^5.1.0",

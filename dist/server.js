@@ -153,7 +153,7 @@ function getTaskPath(tasks, taskId, currentPath = "") {
 function createChecklistServer() {
     const server = new mcp_js_1.McpServer({
         name: 'checklist-mcp-server',
-        version: '1.0.1',
+        version: '1.1.0',
     });
     // --- Tool Definitions ---
     const updateTasksInputSchema = zod_1.z.object({

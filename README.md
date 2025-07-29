@@ -1,10 +1,61 @@
 # Checklist MCP Server
 
+[![npm version](https://badge.fury.io/js/checklist-mcp-server.svg)](https://badge.fury.io/js/checklist-mcp-server)
+[![npm downloads](https://img.shields.io/npm/dm/checklist-mcp-server.svg)](https://www.npmjs.com/package/checklist-mcp-server)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A Model Context Protocol (MCP) server for hierarchical checklist management with session-based task organization and tree visualization, supporting HTTP streamable transport.
 
 ## Overview
 
-The Checklist MCP Server provides a robust solution for managing hierarchical task lists through the Model Context Protocol. It enables AI assistants and other MCP clients to create, update, and track tasks in a structured, tree-like format with support for multiple concurrent sessions. The server now exclusively supports HTTP streamable transport for better performance and scalability. It can significantly enhance the agent's ability to adhere to the task plan during task execution.
+The Checklist MCP Server provides a robust solution for managing hierarchical task lists through the Model Context Protocol. It enables AI assistants and other MCP clients to create, update, and track tasks in a structured, tree-like format with support for multiple concurrent sessions. The server supports both HTTP streamable transport (recommended) and stdio transport (legacy). It can significantly enhance the agent's ability to adhere to the task plan during task execution.
+
+## 🚀 Quick Start
+
+Get started in seconds with npx (no installation required):
+
+```bash
+# Start the server (HTTP mode, port 8585)
+npx checklist-mcp-server
+
+# The server will show:
+# Starting Checklist MCP Server in HTTP mode...
+# HTTP server will run on port 8585
+# MCP endpoint: http://localhost:8585/mcp
+# Checklist MCP HTTP server running on port 8585
+```
+
+### Installation Options
+
+```bash
+# Option 1: Use with npx (recommended, no installation)
+npx checklist-mcp-server
+
+# Option 2: Install globally
+npm install -g checklist-mcp-server
+checklist-mcp-server
+
+# Option 3: Install locally in project
+npm install checklist-mcp-server
+npx checklist-mcp-server
+```
+
+Then configure your MCP client:
+
+```json
+{
+  "mcpServers": {
+    "checklist": {
+      "transport": "http",
+      "url": "http://localhost:8585/mcp"
+    }
+  }
+}
+```
+
+That's it! No installation required. 🎉
+
+📖 **See [USAGE_EXAMPLES.md](USAGE_EXAMPLES.md) for more detailed examples and integration guides.**
 
 ## Features
 
@@ -58,35 +109,52 @@ Update to HTTP configuration:
 
 ## Installation and Setup
 
+### Quick Start with npx (Recommended)
+
+The easiest way to use the server is with npx - no installation required:
+
+```bash
+# Start HTTP server (recommended, default port 8585)
+npx checklist-mcp-server
+
+# Start HTTP server on custom port
+npx checklist-mcp-server --port 3000
+
+# Start stdio server (legacy mode)
+npx checklist-mcp-server stdio
+
+# Show help
+npx checklist-mcp-server --help
+```
+
 ### Installation
 
-Install the package globally or locally:
+For frequent use, you can install globally:
 
 ```bash
 npm install -g checklist-mcp-server
-# or
-npm install checklist-mcp-server
+
+# Then run directly
+checklist-mcp-server
+checklist-mcp-server --port 3000
+checklist-mcp-server stdio
 ```
 
-### Running the HTTP Server
-
-Start the HTTP server on port 8585 (default):
+### Alternative Running Methods
 
 ```bash
-# Using global installation
-checklist-mcp-server-http
+# Using specific binaries
+npx checklist-mcp-server-http        # HTTP server only
+npx checklist-mcp-server-stdio       # stdio server only
 
-# Using npm scripts
-npm run start:http
-
-# Using npx
-npx checklist-mcp-server-http
-
-# Custom port
-PORT=3000 npm run start:http
+# Using npm scripts (for development)
+npm run start:http                   # HTTP server
+npm run start                        # stdio server
 ```
 
 ### MCP Configuration
+
+#### HTTP Transport (Recommended)
 
 Configure your MCP client to connect to the HTTP server:
 
@@ -101,7 +169,24 @@ Configure your MCP client to connect to the HTTP server:
 }
 ```
 
-**Note**: This server no longer supports stdio transport. All connections must be made via HTTP streamable transport.
+Start the server with: `npx checklist-mcp-server`
+
+#### Stdio Transport (Legacy)
+
+For legacy stdio transport:
+
+```json
+{
+  "mcpServers": {
+    "checklist": {
+      "command": "npx",
+      "args": ["checklist-mcp-server", "stdio"]
+    }
+  }
+}
+```
+
+**Note**: HTTP transport is recommended for better performance and features.
 
 ## HTTP Server Configuration
 
@@ -670,6 +755,35 @@ Warning: sessionId 'nonexistent-session' does not exist in task store
 5. **Verify task structure**: Use `get_all_tasks` to confirm session task hierarchy
 6. **HTTP connectivity**: Ensure the server is running and accessible at the configured URL
 7. **Transport cleanup**: Always close HTTP transports properly to avoid connection leaks
+
+### Troubleshooting npx Usage
+
+**Server won't start:**
+```bash
+# Check if port is in use
+lsof -i :8585
+
+# Use different port
+npx checklist-mcp-server --port 3000
+
+# Check for errors
+npx checklist-mcp-server 2>&1 | tee server.log
+```
+
+**npx command not found:**
+```bash
+# Update npm/node
+npm install -g npm@latest
+
+# Clear npx cache
+npx --yes checklist-mcp-server
+```
+
+**Permission issues:**
+```bash
+# On Unix systems, ensure execute permissions
+chmod +x ~/.npm/_npx/*/node_modules/.bin/checklist-mcp-server
+```
 
 ## Testing
 
