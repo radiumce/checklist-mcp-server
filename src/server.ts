@@ -8,6 +8,7 @@ const logger = pino({ level: 'info' }, pino.destination(2)); // 2 is stderr file
 // Import work info utilities
 import { WorkInfo } from './types/workInfo';
 import { WorkInfoLRUCache } from './utils/workInfoLRUCache';
+import { TaskStoreLRUCache } from './utils/taskStoreLRUCache';
 import { WorkIdGenerator } from './utils/workIdGenerator';
 import { 
   validateSaveWorkInfoInput, 
@@ -58,12 +59,10 @@ function setDefaultStatusRecursively(tasks: InputTask[]): Task[] {
   });
 }
 
-// In-memory store for tasks, keyed by sessionId
-const taskStore: Map<string, Task[]> = new Map();
-
-// Initialize work info LRU cache
+// Initialize LRU caches
 const workInfoCache = new WorkInfoLRUCache(10);
-const sessionToWorkIdMap = new Map<string, string>();
+const maxSessions = parseInt(process.env.MAX_SESSIONS || '100', 10);
+const taskStoreCache = new TaskStoreLRUCache(maxSessions);
 
 // Validation and Error Handling Functions
 function validateSession(sessionId: string): { isValid: boolean; error?: string } {
@@ -172,7 +171,7 @@ function getTaskPath(tasks: Task[], taskId: string, currentPath: string = ""): s
 export function createChecklistServer(): McpServer {
   const server = new McpServer({
     name: 'checklist-mcp-server',
-    version: '1.1.0',
+    version: '1.2.0',
   });
 
   // --- Tool Definitions ---
@@ -237,9 +236,9 @@ Input:
     const pathValidation = validatePath(path);
     if (!pathValidation.isValid) return { content: [{ type: "text", text: `Error: ${pathValidation.error}` }] };
 
-    let sessionTasks = taskStore.get(sessionId) || [];
+    let sessionTasks = taskStoreCache.getTasks(sessionId) || [];
     const updatedTasks = updateTasksAtPath(sessionTasks, pathValidation.normalizedPath || path, transformedTasks);
-    taskStore.set(sessionId, updatedTasks);
+    taskStoreCache.setTasks(sessionId, updatedTasks);
 
     const treeView = updatedTasks.length > 0 ? formatTaskTree(updatedTasks) : "No tasks";
     const pathInfo = (path && path !== '/') ? ` at path '${path}'` : '';
@@ -272,12 +271,12 @@ Input:
       return { content: [{ type: "text", text: `Error: Task ID '${taskId}' has invalid format` }] };
     }
 
-    let sessionTasks = taskStore.get(sessionId);
+    let sessionTasks = taskStoreCache.getTasks(sessionId);
     if (!sessionTasks) return { content: [{ type: "text", text: `Error: No tasks found for session ${sessionId}` }] };
     const targetTask = findTaskById(sessionTasks, taskId);
     if (!targetTask) return { content: [{ type: "text", text: `Error: Task with ID '${taskId}' not found` }] };
     targetTask.status = 'DONE';
-    taskStore.set(sessionId, sessionTasks);
+    taskStoreCache.setTasks(sessionId, sessionTasks);
     const treeView = formatTaskTree(sessionTasks);
     return { 
       content: [
@@ -300,7 +299,7 @@ Input:
     const { sessionId } = params;
     const sessionValidation = validateSession(sessionId);
     if (!sessionValidation.isValid) return { content: [{ type: "text", text: `Error: ${sessionValidation.error}` }] };
-    const sessionTasks = taskStore.get(sessionId);
+    const sessionTasks = taskStoreCache.getTasks(sessionId);
     if (!sessionTasks || sessionTasks.length === 0) return { content: [{ type: "text", text: `No tasks found for session ${sessionId}.` }] };
     const treeView = formatTaskTree(sessionTasks);
     return { content: [{ type: "text", text: `Tasks for session ${sessionId}:\n${treeView}` }] };
@@ -327,16 +326,16 @@ Input:
     const { work_summarize, work_description, sessionId } = params;
     let workId: string;
 
-    if (sessionId && sessionToWorkIdMap.has(sessionId)) {
-      workId = sessionToWorkIdMap.get(sessionId)!;
+    if (sessionId && taskStoreCache.getWorkIdMapping(sessionId)) {
+      workId = taskStoreCache.getWorkIdMapping(sessionId)!;
     } else {
       workId = WorkIdGenerator.generateUniqueId();
       if (sessionId) {
-        sessionToWorkIdMap.set(sessionId, workId);
+        taskStoreCache.setWorkIdMapping(sessionId, workId);
       }
     }
 
-    const sessionTasks = sessionId ? taskStore.get(sessionId) : undefined;
+    const sessionTasks = sessionId ? taskStoreCache.getTasks(sessionId) : undefined;
     const workInfo: WorkInfo = { 
       workId, 
       work_timestamp: createTimestamp(), 

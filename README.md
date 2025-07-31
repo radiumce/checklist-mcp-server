@@ -70,6 +70,7 @@ That's it! No installation required. 🎉
 - **Work Information Management**: LRU cache-based system for storing and sharing work summaries between agents
 - **Session Association**: Link work information with task sessions to capture task state snapshots
 - **Agent Handoffs**: Enable seamless work context transfer between LLM agents
+- **Memory Management**: Automatic LRU-based session cleanup to prevent memory growth in long-running deployments
 
 ## ⚠️ Important: Transport Protocol Change
 
@@ -194,6 +195,7 @@ For legacy stdio transport:
 
 - `PORT`: Server port (default: 8585)
 - `NODE_ENV`: Environment mode (development/production)
+- `MAX_SESSIONS`: Maximum number of concurrent sessions to keep in memory (default: 100)
 
 ### Server Endpoints
 
@@ -214,6 +216,31 @@ For production deployment, build the project first:
 ```bash
 npm run build
 npm run start:http
+```
+
+### Memory Management
+
+The server includes automatic memory management to prevent unlimited memory growth in long-running deployments:
+
+```bash
+# Set maximum number of concurrent sessions (default: 100)
+export MAX_SESSIONS=200
+npm run start:http
+```
+
+**Key Features:**
+- **LRU Eviction**: Automatically removes least recently used sessions when limit is reached
+- **Configurable Limit**: Set `MAX_SESSIONS` environment variable (default: 100)
+- **Transparent Operation**: No changes needed to existing client code
+- **Access-Based Tracking**: Sessions are kept alive based on recent usage, not time
+
+**Example with custom session limit:**
+```bash
+# For high-traffic deployments
+MAX_SESSIONS=500 npm run start:http
+
+# For resource-constrained environments  
+MAX_SESSIONS=50 npm run start:http
 ```
 
 ### Health Check

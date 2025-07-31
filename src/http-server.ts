@@ -34,7 +34,7 @@ app.get('/health', (req: Request, res: Response) => {
     status: 'ok',
     timestamp: new Date().toISOString(),
     server: 'checklist-mcp-server',
-    version: '1.1.0'
+    version: '1.2.0'
   });
 });
 

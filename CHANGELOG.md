@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2025-01-31
+
+### Added
+- **Session Memory Management**: Implemented LRU (Least Recently Used) cache for session management
+- **Configurable Session Limits**: Added `MAX_SESSIONS` environment variable (default: 100)
+- **Automatic Memory Cleanup**: Sessions are automatically evicted when limit is reached
+- **Session Monitoring**: Added detailed logging for session creation and eviction events
+
+### Changed
+- **Memory Usage**: Memory consumption is now bounded and predictable
+- **Session Storage**: Replaced unbounded Map storage with LRU cache implementation
+- **Performance**: Maintained O(1) access time while adding memory management
+
+### Technical Details
+- New `TaskStoreLRUCache` class implements efficient LRU algorithm
+- Automatic cleanup of both task data and workId mappings
+- Full backward compatibility - no API changes required
+- Comprehensive test coverage including integration tests
+
+### Configuration
+```bash
+# Set maximum number of sessions (default: 100)
+export MAX_SESSIONS=200
+npm start
+```
+
 ## [1.1.1] - 2025-01-29
 
 ### Fixed

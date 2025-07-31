@@ -10,6 +10,7 @@ const pino_1 = __importDefault(require("pino"));
 // Configure pino logger to write to stderr
 const logger = (0, pino_1.default)({ level: 'info' }, pino_1.default.destination(2)); // 2 is stderr file descriptor
 const workInfoLRUCache_1 = require("./utils/workInfoLRUCache");
+const taskStoreLRUCache_1 = require("./utils/taskStoreLRUCache");
 const workIdGenerator_1 = require("./utils/workIdGenerator");
 const workInfoValidation_1 = require("./utils/workInfoValidation");
 // Recursive Zod schema for the InputTask type
@@ -35,11 +36,10 @@ function setDefaultStatusRecursively(tasks) {
         return newTask;
     });
 }
-// In-memory store for tasks, keyed by sessionId
-const taskStore = new Map();
-// Initialize work info LRU cache
+// Initialize LRU caches
 const workInfoCache = new workInfoLRUCache_1.WorkInfoLRUCache(10);
-const sessionToWorkIdMap = new Map();
+const maxSessions = parseInt(process.env.MAX_SESSIONS || '100', 10);
+const taskStoreCache = new taskStoreLRUCache_1.TaskStoreLRUCache(maxSessions);
 // Validation and Error Handling Functions
 function validateSession(sessionId) {
     if (!sessionId || typeof sessionId !== 'string') {
@@ -153,7 +153,7 @@ function getTaskPath(tasks, taskId, currentPath = "") {
 function createChecklistServer() {
     const server = new mcp_js_1.McpServer({
         name: 'checklist-mcp-server',
-        version: '1.1.0',
+        version: '1.2.0',
     });
     // --- Tool Definitions ---
     const updateTasksInputSchema = zod_1.z.object({
@@ -210,9 +210,9 @@ Input:
         const pathValidation = validatePath(path);
         if (!pathValidation.isValid)
             return { content: [{ type: "text", text: `Error: ${pathValidation.error}` }] };
-        let sessionTasks = taskStore.get(sessionId) || [];
+        let sessionTasks = taskStoreCache.getTasks(sessionId) || [];
         const updatedTasks = updateTasksAtPath(sessionTasks, pathValidation.normalizedPath || path, transformedTasks);
-        taskStore.set(sessionId, updatedTasks);
+        taskStoreCache.setTasks(sessionId, updatedTasks);
         const treeView = updatedTasks.length > 0 ? formatTaskTree(updatedTasks) : "No tasks";
         const pathInfo = (path && path !== '/') ? ` at path '${path}'` : '';
         return {
@@ -240,14 +240,14 @@ Input:
         if (!validateTaskId(taskId)) {
             return { content: [{ type: "text", text: `Error: Task ID '${taskId}' has invalid format` }] };
         }
-        let sessionTasks = taskStore.get(sessionId);
+        let sessionTasks = taskStoreCache.getTasks(sessionId);
         if (!sessionTasks)
             return { content: [{ type: "text", text: `Error: No tasks found for session ${sessionId}` }] };
         const targetTask = findTaskById(sessionTasks, taskId);
         if (!targetTask)
             return { content: [{ type: "text", text: `Error: Task with ID '${taskId}' not found` }] };
         targetTask.status = 'DONE';
-        taskStore.set(sessionId, sessionTasks);
+        taskStoreCache.setTasks(sessionId, sessionTasks);
         const treeView = formatTaskTree(sessionTasks);
         return {
             content: [
@@ -268,7 +268,7 @@ Input:
         const sessionValidation = validateSession(sessionId);
         if (!sessionValidation.isValid)
             return { content: [{ type: "text", text: `Error: ${sessionValidation.error}` }] };
-        const sessionTasks = taskStore.get(sessionId);
+        const sessionTasks = taskStoreCache.getTasks(sessionId);
         if (!sessionTasks || sessionTasks.length === 0)
             return { content: [{ type: "text", text: `No tasks found for session ${sessionId}.` }] };
         const treeView = formatTaskTree(sessionTasks);
@@ -292,16 +292,16 @@ Input:
     server.tool("save_current_work_info", saveCurrentWorkInfoDescription, saveCurrentWorkInfoInputSchema.shape, async (params) => {
         const { work_summarize, work_description, sessionId } = params;
         let workId;
-        if (sessionId && sessionToWorkIdMap.has(sessionId)) {
-            workId = sessionToWorkIdMap.get(sessionId);
+        if (sessionId && taskStoreCache.getWorkIdMapping(sessionId)) {
+            workId = taskStoreCache.getWorkIdMapping(sessionId);
         }
         else {
             workId = workIdGenerator_1.WorkIdGenerator.generateUniqueId();
             if (sessionId) {
-                sessionToWorkIdMap.set(sessionId, workId);
+                taskStoreCache.setWorkIdMapping(sessionId, workId);
             }
         }
-        const sessionTasks = sessionId ? taskStore.get(sessionId) : undefined;
+        const sessionTasks = sessionId ? taskStoreCache.getTasks(sessionId) : undefined;
         const workInfo = {
             workId,
             work_timestamp: (0, workInfoValidation_1.createTimestamp)(),
