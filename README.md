@@ -110,9 +110,35 @@ Update to HTTP configuration:
 
 ## Installation and Setup
 
-### Quick Start with npx (Recommended)
+### 🐳 Docker Installation (Recommended for Production)
 
-The easiest way to use the server is with npx - no installation required:
+The easiest way to deploy in production is using Docker:
+
+```bash
+# Using Docker
+docker run -d \
+  --name checklist-mcp-server \
+  -p 8585:8585 \
+  -e MAX_SESSIONS=100 \
+  --restart unless-stopped \
+  checklist-mcp-server:latest
+
+# Or using Docker Compose
+docker-compose up -d
+```
+
+**Benefits:**
+- ✅ Minimal image size (~150-200MB with node:slim base)
+- ✅ Isolated environment
+- ✅ Easy deployment and scaling
+- ✅ Built-in health checks
+- ✅ Production-ready configuration
+
+📖 **See [DOCKER.md](DOCKER.md) for complete Docker deployment guide.**
+
+### Quick Start with npx (Recommended for Development)
+
+The easiest way to use the server for development is with npx - no installation required:
 
 ```bash
 # Start HTTP server (recommended, default port 8585)

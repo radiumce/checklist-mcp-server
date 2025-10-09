@@ -24,7 +24,16 @@
     "prepublishOnly": "npm run build && npm run verify && npm test",
     "publish:interactive": "node scripts/publish.js",
     "publish:check": "node scripts/pre-publish-check.js",
-    "postinstall": "node scripts/postinstall.js"
+    "postinstall": "node scripts/postinstall.js",
+    "docker:build": "docker build -t checklist-mcp-server:latest .",
+    "docker:build:test": "./scripts/docker-build.sh",
+    "docker:run": "docker run -d --name checklist-mcp-server -p 8585:8585 checklist-mcp-server:latest",
+    "docker:stop": "docker stop checklist-mcp-server && docker rm checklist-mcp-server",
+    "docker:logs": "docker logs -f checklist-mcp-server",
+    "docker:push": "./scripts/docker-push-ghcr.sh",
+    "docker:compose:up": "docker-compose up -d",
+    "docker:compose:down": "docker-compose down",
+    "docker:compose:logs": "docker-compose logs -f"
   },
   "keywords": [
     "mcp",
@@ -36,7 +45,9 @@
     "model-context-protocol",
     "ai-assistant",
     "task-tracker",
-    "npx"
+    "npx",
+    "docker",
+    "container"
   ],
   "files": [
     "dist/**/*",
