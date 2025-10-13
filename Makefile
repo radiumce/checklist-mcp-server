@@ -1,6 +1,6 @@
 # Makefile for Checklist MCP Server Docker operations
 
-.PHONY: help build run stop logs clean test compose-up compose-down compose-logs push
+.PHONY: help build run stop logs clean test compose-up compose-down compose-logs push build-multiplatform
 
 # Default target
 help:
@@ -9,23 +9,29 @@ help:
 	@echo "Usage: make [target]"
 	@echo ""
 	@echo "Targets:"
-	@echo "  build         - Build Docker image"
-	@echo "  run           - Run Docker container"
-	@echo "  stop          - Stop and remove Docker container"
-	@echo "  logs          - View container logs"
-	@echo "  clean         - Remove image and container"
-	@echo "  test          - Build and test Docker image"
-	@echo "  push          - Push image to GitHub Container Registry"
-	@echo "  compose-up    - Start with Docker Compose"
-	@echo "  compose-down  - Stop Docker Compose"
-	@echo "  compose-logs  - View Docker Compose logs"
-	@echo "  shell         - Open shell in running container"
-	@echo "  health        - Check container health"
+	@echo "  build                - Build Docker image"
+	@echo "  build-multiplatform  - Build and push multi-platform image (amd64, arm64)"
+	@echo "  run                  - Run Docker container"
+	@echo "  stop                 - Stop and remove Docker container"
+	@echo "  logs                 - View container logs"
+	@echo "  clean                - Remove image and container"
+	@echo "  test                 - Build and test Docker image"
+	@echo "  push                 - Push image to GitHub Container Registry"
+	@echo "  compose-up           - Start with Docker Compose"
+	@echo "  compose-down         - Stop Docker Compose"
+	@echo "  compose-logs         - View Docker Compose logs"
+	@echo "  shell                - Open shell in running container"
+	@echo "  health               - Check container health"
 
 # Build Docker image
 build:
 	@echo "Building Docker image..."
 	docker build -t checklist-mcp-server:latest .
+
+# Build and push multi-platform image
+build-multiplatform:
+	@echo "Building and pushing multi-platform image..."
+	./scripts/docker-build-multiplatform.sh
 
 # Run Docker container
 run:

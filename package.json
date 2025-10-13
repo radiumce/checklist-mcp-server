@@ -27,6 +27,7 @@
     "postinstall": "node scripts/postinstall.js",
     "docker:build": "docker build -t checklist-mcp-server:latest .",
     "docker:build:test": "./scripts/docker-build.sh",
+    "docker:build:multiplatform": "./scripts/docker-build-multiplatform.sh",
     "docker:run": "docker run -d --name checklist-mcp-server -p 8585:8585 checklist-mcp-server:latest",
     "docker:stop": "docker stop checklist-mcp-server && docker rm checklist-mcp-server",
     "docker:logs": "docker logs -f checklist-mcp-server",
