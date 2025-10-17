@@ -2,6 +2,11 @@
 import express, { Request, Response } from 'express';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { createChecklistServer } from './server';
+import { runInNamespace } from './utils/namespaceContext';
+import { URL } from 'url';
+import pino from 'pino';
+
+const logger = pino({ level: 'info' }, pino.destination(2));
 
 const app = express();
 
@@ -25,8 +30,9 @@ app.use((req, res, next) => {
 const MCP_ENDPOINT = "/mcp";
 const PORT = process.env.PORT || 8585;
 
-// Get the base checklist server
+// Create singleton MCP server instance
 const mcpServer = createChecklistServer();
+logger.info('MCP Server instance created (singleton)');
 
 // 添加健康检查端点
 app.get('/health', (req: Request, res: Response) => {
@@ -48,28 +54,44 @@ app.get('/', (req: Request, res: Response) => {
 });
 
 app.post(MCP_ENDPOINT, async (req: Request, res: Response) => {
-  try {
-    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-    // Note: We connect the single mcpServer instance to a new transport for each request.
-    await mcpServer.connect(transport);
-    await transport.handleRequest(req, res, req.body);
-
-    res.on('close', () => {
-      transport.close();
-    });
-  } catch (error: any) {
-    console.error('Error handling MCP request:', error);
-    if (!res.headersSent) {
-      res.status(500).json({
-        jsonrpc: '2.0',
-        error: {
-          code: -32603,
-          message: 'Internal server error: ' + error.message,
-        },
-        id: req.body?.id || null,
-      });
-    }
+  // Extract namespace from URL query parameters
+  const fullUrl = `http://${req.headers.host}${req.url}`;
+  const urlObj = new URL(fullUrl);
+  const namespace = urlObj.searchParams.get('namespace') || 'default';
+  
+  // Log namespace for debugging (only log tools/call to reduce noise)
+  const method = req.body?.method || 'unknown';
+  if (method === 'tools/call') {
+    const toolName = req.body?.params?.name || 'unknown';
+    logger.info({ namespace, method, toolName }, `Tool call: ${toolName} in namespace: ${namespace}`);
   }
+  
+  // Run the entire request handling in namespace context
+  await runInNamespace(namespace, async () => {
+    try {
+      const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+      
+      res.on('close', () => {
+        transport.close();
+      });
+      
+      // Use the singleton MCP server instance
+      await mcpServer.connect(transport);
+      await transport.handleRequest(req, res, req.body);
+    } catch (error: any) {
+      console.error('Error handling MCP request:', error);
+      if (!res.headersSent) {
+        res.status(500).json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32603,
+            message: 'Internal server error: ' + error.message,
+          },
+          id: req.body?.id || null,
+        });
+      }
+    }
+  });
 });
 
 app.listen(PORT, () => {

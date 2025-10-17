@@ -10,6 +10,8 @@ import { WorkInfo } from './types/workInfo';
 import { WorkInfoLRUCache } from './utils/workInfoLRUCache';
 import { TaskStoreLRUCache } from './utils/taskStoreLRUCache';
 import { WorkIdGenerator } from './utils/workIdGenerator';
+import { namespaceManager } from './utils/namespaceManager';
+import { getCurrentNamespace } from './utils/namespaceContext';
 import { 
   validateSaveWorkInfoInput, 
   validateGetWorkByIdInput,
@@ -59,10 +61,8 @@ function setDefaultStatusRecursively(tasks: InputTask[]): Task[] {
   });
 }
 
-// Initialize LRU caches
-const workInfoCache = new WorkInfoLRUCache(10);
-const maxSessions = parseInt(process.env.MAX_SESSIONS || '100', 10);
-const taskStoreCache = new TaskStoreLRUCache(maxSessions);
+// Note: Caches are now managed per-namespace by the namespaceManager
+// They will be retrieved in createChecklistServer() based on the namespace parameter
 
 // Validation and Error Handling Functions
 function validateSession(sessionId: string): { isValid: boolean; error?: string } {
@@ -173,6 +173,8 @@ export function createChecklistServer(): McpServer {
     name: 'checklist-mcp-server',
     version: '1.2.0',
   });
+  
+  logger.info('Creating checklist server instance (singleton)');
 
   // --- Tool Definitions ---
 
@@ -205,6 +207,11 @@ Input:
     }
 
     const { sessionId, path, tasks: inputTasks } = validationResult.data;
+    
+    // Get namespace from async context
+    const namespace = getCurrentNamespace();
+    const { taskStoreCache } = namespaceManager.getCaches(namespace);
+    logger.debug({ namespace, sessionId }, 'update_tasks called in namespace');
 
     // After validation, manually transform the tasks to set default status
     const transformedTasks = setDefaultStatusRecursively(inputTasks);
@@ -264,6 +271,11 @@ Input:
 `;
   server.tool("mark_task_as_done", markTaskAsDoneDescription, markTaskAsDoneInputSchema.shape, async (params: MarkTaskAsDoneInput) => {
     const { sessionId, taskId } = params;
+    
+    // Get namespace from async context
+    const namespace = getCurrentNamespace();
+    const { taskStoreCache } = namespaceManager.getCaches(namespace);
+    logger.debug({ namespace, sessionId }, 'mark_task_as_done called in namespace');
     const sessionValidation = validateSession(sessionId);
     if (!sessionValidation.isValid) return { content: [{ type: "text", text: `Error: ${sessionValidation.error}` }] };
 
@@ -297,6 +309,11 @@ Input:
 `;
   server.tool("get_all_tasks", getAllTasksDescription, getAllTasksInputSchema.shape, async (params: GetAllTasksInput) => {
     const { sessionId } = params;
+    
+    // Get namespace from async context
+    const namespace = getCurrentNamespace();
+    const { taskStoreCache } = namespaceManager.getCaches(namespace);
+    logger.debug({ namespace, sessionId }, 'get_all_tasks called in namespace');
     const sessionValidation = validateSession(sessionId);
     if (!sessionValidation.isValid) return { content: [{ type: "text", text: `Error: ${sessionValidation.error}` }] };
     const sessionTasks = taskStoreCache.getTasks(sessionId);
@@ -324,6 +341,11 @@ Input:
 `;
   server.tool("save_current_work_info", saveCurrentWorkInfoDescription, saveCurrentWorkInfoInputSchema.shape, async (params: SaveCurrentWorkInfoInput) => {
     const { work_summarize, work_description, sessionId } = params;
+    
+    // Get namespace from async context
+    const namespace = getCurrentNamespace();
+    const { workInfoCache, taskStoreCache } = namespaceManager.getCaches(namespace);
+    logger.debug({ namespace, sessionId }, 'save_current_work_info called in namespace');
     let workId: string;
 
     if (sessionId && taskStoreCache.getWorkIdMapping(sessionId)) {
@@ -367,6 +389,10 @@ This tool is useful for quickly viewing past work without retrieving all the det
 Input: None
 `;
   server.tool("get_recent_works_info", getRecentWorksInfoDescription, {}, async () => {
+    // Get namespace from async context
+    const namespace = getCurrentNamespace();
+    const { workInfoCache } = namespaceManager.getCaches(namespace);
+    logger.debug({ namespace }, 'get_recent_works_info called in namespace');
     const recentWorks = workInfoCache.getRecentList();
     const worksJson = JSON.stringify({ works: recentWorks }, null, 2);
     const hint = "If you find the required work info in the list above, please extract the workId and call the `get_work_by_id` tool to get detailed information.";
@@ -391,6 +417,11 @@ Input:
 `;
   server.tool("get_work_by_id", getWorkByIdDescription, getWorkByIdInputSchema.shape, async (params: GetWorkByIdInput) => {
     const { workId } = params;
+    
+    // Get namespace from async context
+    const namespace = getCurrentNamespace();
+    const { workInfoCache } = namespaceManager.getCaches(namespace);
+    logger.debug({ namespace, workId }, 'get_work_by_id called in namespace');
     const workInfo = workInfoCache.get(workId);
     if (!workInfo) return { content: [{ type: "text", text: `Error: Work not found for workId '${workId}'` }] };
     return { content: [{ type: "text", text: JSON.stringify(workInfo, null, 2) }] };
