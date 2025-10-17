@@ -23,11 +23,15 @@ interface NamespaceCaches {
 class NamespaceManager {
   private namespaces: Map<string, NamespaceCaches>;
   private maxSessions: number;
+  private maxNamespaces: number;
+  private namespaceAccessOrder: string[]; // Track access order for LRU
 
   constructor() {
     this.namespaces = new Map();
     this.maxSessions = parseInt(process.env.MAX_SESSIONS || '100', 10);
-    logger.info({ maxSessions: this.maxSessions }, 'NamespaceManager initialized');
+    this.maxNamespaces = parseInt(process.env.MAX_NAMESPACES || '32', 10);
+    this.namespaceAccessOrder = [];
+    logger.info({ maxSessions: this.maxSessions, maxNamespaces: this.maxNamespaces }, 'NamespaceManager initialized');
   }
 
   /**
@@ -36,7 +40,13 @@ class NamespaceManager {
    * @returns Cache instances for the namespace
    */
   getCaches(namespace: string = 'default'): NamespaceCaches {
+    // Update access order for LRU
+    this.updateAccessOrder(namespace);
+    
     if (!this.namespaces.has(namespace)) {
+      // Check if we need to evict a namespace
+      this.evictIfNeeded();
+      
       logger.info({ namespace }, 'Creating new namespace caches');
       
       const caches: NamespaceCaches = {
@@ -48,6 +58,50 @@ class NamespaceManager {
     }
     
     return this.namespaces.get(namespace)!;
+  }
+
+  /**
+   * Update the access order for LRU tracking
+   * @param namespace The namespace being accessed
+   */
+  private updateAccessOrder(namespace: string): void {
+    // Remove namespace from current position if it exists
+    const index = this.namespaceAccessOrder.indexOf(namespace);
+    if (index > -1) {
+      this.namespaceAccessOrder.splice(index, 1);
+    }
+    
+    // Add to the end (most recently used)
+    this.namespaceAccessOrder.push(namespace);
+  }
+
+  /**
+   * Evict the least recently used namespace if limit is reached
+   * The 'default' namespace is never evicted
+   */
+  private evictIfNeeded(): void {
+    if (this.namespaces.size < this.maxNamespaces) {
+      return; // No need to evict
+    }
+    
+    // Find the least recently used namespace that is not 'default'
+    for (const namespace of this.namespaceAccessOrder) {
+      if (namespace !== 'default' && this.namespaces.has(namespace)) {
+        logger.info({ namespace, totalNamespaces: this.namespaces.size }, 'Evicting namespace due to LRU limit');
+        
+        // Remove from map and access order
+        this.namespaces.delete(namespace);
+        const index = this.namespaceAccessOrder.indexOf(namespace);
+        if (index > -1) {
+          this.namespaceAccessOrder.splice(index, 1);
+        }
+        
+        return; // Only evict one namespace at a time
+      }
+    }
+    
+    // If we get here, all namespaces are 'default' (shouldn't happen in practice)
+    logger.warn({ totalNamespaces: this.namespaces.size }, 'Cannot evict: only default namespace exists');
   }
 
   /**
@@ -81,9 +135,21 @@ class NamespaceManager {
    * @returns True if namespace existed and was cleared, false otherwise
    */
   clearNamespace(namespace: string): boolean {
+    if (namespace === 'default') {
+      logger.warn({ namespace }, 'Cannot clear default namespace');
+      return false;
+    }
+    
     if (this.namespaces.has(namespace)) {
       logger.info({ namespace }, 'Clearing namespace caches');
       this.namespaces.delete(namespace);
+      
+      // Remove from access order
+      const index = this.namespaceAccessOrder.indexOf(namespace);
+      if (index > -1) {
+        this.namespaceAccessOrder.splice(index, 1);
+      }
+      
       return true;
     }
     return false;
