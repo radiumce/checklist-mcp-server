@@ -3,8 +3,8 @@
  * Provides shared utilities for test files to ensure consistency
  */
 
-import { generateTaskId, generateMultipleTaskIds, createUniqueIdGenerator } from '../utils/taskIdGenerator';
-import { Task } from '../server';
+import { generateTaskId, generateMultipleTaskIds, createUniqueIdGenerator } from '../utils/taskIdGenerator.js';
+import { Task } from '../server.js';
 
 // Re-export ID generation functions for tests
 export { generateTaskId, generateMultipleTaskIds, createUniqueIdGenerator };

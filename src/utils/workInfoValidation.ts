@@ -3,8 +3,8 @@
  * Validation functions for work info data structures and inputs
  */
 
-import { WorkInfo, SaveWorkInfoInput, GetWorkByIdInput } from '../types/workInfo';
-import { WorkIdGenerator } from './workIdGenerator';
+import { WorkInfo, SaveWorkInfoInput, GetWorkByIdInput } from '../types/workInfo.js';
+import { WorkIdGenerator } from './workIdGenerator.js';
 
 /**
  * Validation result interface

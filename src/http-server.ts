@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import express, { Request, Response } from 'express';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { createChecklistServer } from './server';
-import { runInNamespace } from './utils/namespaceContext';
+import { createChecklistServer } from './server.js';
+import { runInNamespace } from './utils/namespaceContext.js';
 import { URL } from 'url';
 import pino from 'pino';
 

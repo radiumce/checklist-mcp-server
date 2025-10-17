@@ -6,17 +6,17 @@ import pino from 'pino';
 const logger = pino({ level: 'info' }, pino.destination(2)); // 2 is stderr file descriptor
 
 // Import work info utilities
-import { WorkInfo } from './types/workInfo';
-import { WorkInfoLRUCache } from './utils/workInfoLRUCache';
-import { TaskStoreLRUCache } from './utils/taskStoreLRUCache';
-import { WorkIdGenerator } from './utils/workIdGenerator';
-import { namespaceManager } from './utils/namespaceManager';
-import { getCurrentNamespace } from './utils/namespaceContext';
+import { WorkInfo } from './types/workInfo.js';
+import { WorkInfoLRUCache } from './utils/workInfoLRUCache.js';
+import { TaskStoreLRUCache } from './utils/taskStoreLRUCache.js';
+import { WorkIdGenerator } from './utils/workIdGenerator.js';
+import { namespaceManager } from './utils/namespaceManager.js';
+import { getCurrentNamespace } from './utils/namespaceContext.js';
 import { 
   validateSaveWorkInfoInput, 
   validateGetWorkByIdInput,
   createTimestamp 
-} from './utils/workInfoValidation';
+} from './utils/workInfoValidation.js';
 
 // Final, validated Task structure
 export interface Task {
