@@ -123,12 +123,17 @@ function updateTasksAtPath(rootTasks: Task[], path: string, newTasks: Task[]): T
   for (let i = 0; i < pathSegments.length - 1; i++) {
     const segment = pathSegments[i];
     const parentTask = currentLevel.find(task => task.taskId === segment);
-    if (!parentTask) return rootTasks; // Path not found
+    if (!parentTask) {
+      throw new Error(`Path not found: task '${segment}' does not exist at level ${i + 1} of path '${path}'`);
+    }
     if (!parentTask.children) parentTask.children = [];
     currentLevel = parentTask.children;
   }
   const targetTask = currentLevel.find(task => task.taskId === pathSegments[pathSegments.length - 1]);
-  if (targetTask) targetTask.children = [...newTasks];
+  if (!targetTask) {
+    throw new Error(`Path not found: task '${pathSegments[pathSegments.length - 1]}' does not exist at the target level of path '${path}'`);
+  }
+  targetTask.children = [...newTasks];
   return rootTasks;
 }
 
@@ -244,7 +249,13 @@ Input:
     if (!pathValidation.isValid) return { content: [{ type: "text", text: `Error: ${pathValidation.error}` }] };
 
     let sessionTasks = taskStoreCache.getTasks(sessionId) || [];
-    const updatedTasks = updateTasksAtPath(sessionTasks, pathValidation.normalizedPath || path, transformedTasks);
+    let updatedTasks: Task[];
+    try {
+      updatedTasks = updateTasksAtPath(sessionTasks, pathValidation.normalizedPath || path, transformedTasks);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { content: [{ type: "text", text: `Error: ${errorMessage}` }] };
+    }
     taskStoreCache.setTasks(sessionId, updatedTasks);
 
     const treeView = updatedTasks.length > 0 ? formatTaskTree(updatedTasks) : "No tasks";
