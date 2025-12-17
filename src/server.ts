@@ -179,7 +179,7 @@ export function createChecklistServer(): McpServer {
     version: '1.2.0',
   });
 
-  logger.info('Creating checklist server instance (singleton)');
+  logger.info('Creating checklist server instance');
 
   // --- Tool Definitions ---
 

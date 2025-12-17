@@ -5,6 +5,7 @@ import { createChecklistServer } from './server.js';
 import { runInNamespace } from './utils/namespaceContext.js';
 import { URL } from 'url';
 import pino from 'pino';
+import { randomUUID } from 'crypto';
 
 const logLevel = process.env.LOG_LEVEL || 'info';
 const logger = pino({ level: logLevel }, pino.destination(2));
@@ -12,7 +13,6 @@ const logger = pino({ level: logLevel }, pino.destination(2));
 const app = express();
 
 // 使用express.raw()来保存原始请求体，然后手动解析JSON
-// 这个修复解决了某些客户端连接时req.body为undefined的问题
 app.use(express.raw({ type: 'application/json', limit: '10mb' }));
 
 // 手动解析JSON
@@ -27,6 +27,7 @@ app.use((req, res, next) => {
   }
   next();
 });
+
 // Debug logging middleware
 app.use((req, res, next) => {
   if (logger.level !== 'debug') {
@@ -59,9 +60,7 @@ app.use((req, res, next) => {
 const MCP_ENDPOINT = "/mcp";
 const PORT = process.env.PORT || 8585;
 
-// Create singleton MCP server instance
-const mcpServer = createChecklistServer();
-logger.info('MCP Server instance created (singleton)');
+// POST-only stateless mode - no session management needed
 
 // 添加健康检查端点
 app.get('/health', (req: Request, res: Response) => {
@@ -82,9 +81,27 @@ app.get('/', (req: Request, res: Response) => {
   });
 });
 
+// ============================================================================
+// MCP ENDPOINT HANDLER - POST-Only Stateless Mode
+// ============================================================================
+// This implementation uses POST-only mode without SSE support.
+// All requests are handled statelessly, avoiding SSE reconnection issues.
+// The MCP spec allows this: "The client MAY issue an HTTP GET to open an SSE stream"
+// (MAY = optional). We return 405 for GET to indicate SSE is not supported.
+
 app.all(MCP_ENDPOINT, async (req: Request, res: Response) => {
-  // Only allow GET and POST
-  if (req.method !== 'GET' && req.method !== 'POST') {
+  // POST-only mode: reject GET requests for SSE
+  if (req.method === 'GET') {
+    // Per MCP spec: "if it does not offer SSE at this endpoint, return HTTP 405"
+    logger.info('GET request rejected - SSE not supported in POST-only mode');
+    res.status(405).json({
+      error: 'Method not allowed. This server operates in POST-only mode without SSE support.'
+    });
+    return;
+  }
+
+  // Only allow POST
+  if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' });
     return;
   }
@@ -94,27 +111,22 @@ app.all(MCP_ENDPOINT, async (req: Request, res: Response) => {
   const urlObj = new URL(fullUrl);
   const namespace = urlObj.searchParams.get('namespace') || 'default';
 
-  logger.info({ body: req.body }, 'MCP Request Payload');
-
-  // Log namespace for debugging (only log tools/call to reduce noise)
-  const method = req.body?.method || 'unknown';
-  if (method === 'tools/call') {
-    const toolName = req.body?.params?.name || 'unknown';
-    logger.info({ namespace, method, toolName }, `Tool call: ${toolName} in namespace: ${namespace}`);
-  }
+  const rpcMethod = req.body?.method || 'unknown';
+  logger.info({ method: req.method, rpcMethod }, 'MCP Request (POST-only mode)');
 
   // Run the entire request handling in namespace context
   await runInNamespace(namespace, async () => {
     try {
-      const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-
-      res.on('close', () => {
-        transport.close();
+      // STATELESS MODE: Create fresh server + transport for each request
+      // This is the simplest and most robust approach
+      const server = createChecklistServer();
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: undefined  // Stateless - no session management
       });
 
-      // Use the singleton MCP server instance
-      await mcpServer.connect(transport);
+      await server.connect(transport);
       await transport.handleRequest(req, res, req.body);
+
     } catch (error: any) {
       console.error('Error handling MCP request:', error);
       if (!res.headersSent) {
@@ -131,6 +143,15 @@ app.all(MCP_ENDPOINT, async (req: Request, res: Response) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`Checklist MCP HTTP server running on port ${PORT}`);
+const server = app.listen(PORT, () => {
+  console.log(`Checklist MCP HTTP server running on port ${PORT} (POST-only mode)`);
 });
+
+// Configure server for long-lived connections (just in case)
+server.timeout = 0;
+server.keepAliveTimeout = 0;
+server.headersTimeout = 0;
+
+logger.info('Server started in POST-only stateless mode (no SSE support)');
+
+
