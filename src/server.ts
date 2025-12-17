@@ -12,10 +12,10 @@ import { TaskStoreLRUCache } from './utils/taskStoreLRUCache.js';
 import { WorkIdGenerator } from './utils/workIdGenerator.js';
 import { namespaceManager } from './utils/namespaceManager.js';
 import { getCurrentNamespace } from './utils/namespaceContext.js';
-import { 
-  validateSaveWorkInfoInput, 
+import {
+  validateSaveWorkInfoInput,
   validateGetWorkByIdInput,
-  createTimestamp 
+  createTimestamp
 } from './utils/workInfoValidation.js';
 
 // Final, validated Task structure
@@ -178,7 +178,7 @@ export function createChecklistServer(): McpServer {
     name: 'checklist-mcp-server',
     version: '1.2.0',
   });
-  
+
   logger.info('Creating checklist server instance (singleton)');
 
   // --- Tool Definitions ---
@@ -207,12 +207,12 @@ Input:
   server.tool("update_tasks", updateTasksDescription, updateTasksInputSchema.shape, async (params: UpdateTasksInput) => {
     const validationResult = updateTasksInputSchema.safeParse(params);
     if (!validationResult.success) {
-      const errorMessages = validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`);
+      const errorMessages = validationResult.error.issues.map((e: z.ZodIssue) => `${e.path.join('.')}: ${e.message}`);
       return { content: [{ type: "text", text: `Error: Invalid input:\n${errorMessages.join('\n')}` }] };
     }
 
     const { sessionId, path, tasks: inputTasks } = validationResult.data;
-    
+
     // Get namespace from async context
     const namespace = getCurrentNamespace();
     const { taskStoreCache } = namespaceManager.getCaches(namespace);
@@ -282,7 +282,7 @@ Input:
 `;
   server.tool("mark_task_as_done", markTaskAsDoneDescription, markTaskAsDoneInputSchema.shape, async (params: MarkTaskAsDoneInput) => {
     const { sessionId, taskId } = params;
-    
+
     // Get namespace from async context
     const namespace = getCurrentNamespace();
     const { taskStoreCache } = namespaceManager.getCaches(namespace);
@@ -301,7 +301,7 @@ Input:
     targetTask.status = 'DONE';
     taskStoreCache.setTasks(sessionId, sessionTasks);
     const treeView = formatTaskTree(sessionTasks);
-    return { 
+    return {
       content: [
         { type: 'text', text: `Successfully marked task ${taskId} as DONE` },
         { type: "text", text: `Complete task hierarchy:\n${treeView}` }
@@ -320,7 +320,7 @@ Input:
 `;
   server.tool("get_all_tasks", getAllTasksDescription, getAllTasksInputSchema.shape, async (params: GetAllTasksInput) => {
     const { sessionId } = params;
-    
+
     // Get namespace from async context
     const namespace = getCurrentNamespace();
     const { taskStoreCache } = namespaceManager.getCaches(namespace);
@@ -352,7 +352,7 @@ Input:
 `;
   server.tool("save_current_work_info", saveCurrentWorkInfoDescription, saveCurrentWorkInfoInputSchema.shape, async (params: SaveCurrentWorkInfoInput) => {
     const { work_summarize, work_description, sessionId } = params;
-    
+
     // Get namespace from async context
     const namespace = getCurrentNamespace();
     const { workInfoCache, taskStoreCache } = namespaceManager.getCaches(namespace);
@@ -369,12 +369,12 @@ Input:
     }
 
     const sessionTasks = sessionId ? taskStoreCache.getTasks(sessionId) : undefined;
-    const workInfo: WorkInfo = { 
-      workId, 
-      work_timestamp: createTimestamp(), 
-      work_description, 
-      work_summarize, 
-      sessionId, 
+    const workInfo: WorkInfo = {
+      workId,
+      work_timestamp: createTimestamp(),
+      work_description,
+      work_summarize,
+      sessionId,
       work_tasks: sessionTasks ? JSON.parse(JSON.stringify(sessionTasks)) : undefined
     };
     workInfoCache.set(workInfo);
@@ -428,7 +428,7 @@ Input:
 `;
   server.tool("get_work_by_id", getWorkByIdDescription, getWorkByIdInputSchema.shape, async (params: GetWorkByIdInput) => {
     const { workId } = params;
-    
+
     // Get namespace from async context
     const namespace = getCurrentNamespace();
     const { workInfoCache } = namespaceManager.getCaches(namespace);

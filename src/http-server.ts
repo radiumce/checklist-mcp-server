@@ -6,7 +6,8 @@ import { runInNamespace } from './utils/namespaceContext.js';
 import { URL } from 'url';
 import pino from 'pino';
 
-const logger = pino({ level: 'info' }, pino.destination(2));
+const logLevel = process.env.LOG_LEVEL || 'info';
+const logger = pino({ level: logLevel }, pino.destination(2));
 
 const app = express();
 
@@ -24,6 +25,34 @@ app.use((req, res, next) => {
       req.body = null;
     }
   }
+  next();
+});
+// Debug logging middleware
+app.use((req, res, next) => {
+  if (logger.level !== 'debug') {
+    return next();
+  }
+
+  logger.debug({ method: req.method, url: req.url, headers: req.headers }, 'Incoming request');
+
+  // Hook into response to log output
+  const originalWrite = res.write;
+  const originalEnd = res.end;
+
+  const chunks: Buffer[] = [];
+
+  res.write = function (chunk: any, ...args: any[]) {
+    if (chunk) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    return originalWrite.apply(res, [chunk, ...args] as any);
+  };
+
+  res.end = function (chunk: any, ...args: any[]) {
+    if (chunk) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    const body = Buffer.concat(chunks).toString('utf8');
+    logger.debug({ statusCode: res.statusCode, body }, 'Outgoing response');
+    return originalEnd.apply(res, [chunk, ...args] as any);
+  };
+
   next();
 });
 
@@ -53,28 +82,36 @@ app.get('/', (req: Request, res: Response) => {
   });
 });
 
-app.post(MCP_ENDPOINT, async (req: Request, res: Response) => {
+app.all(MCP_ENDPOINT, async (req: Request, res: Response) => {
+  // Only allow GET and POST
+  if (req.method !== 'GET' && req.method !== 'POST') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
   // Extract namespace from URL query parameters
   const fullUrl = `http://${req.headers.host}${req.url}`;
   const urlObj = new URL(fullUrl);
   const namespace = urlObj.searchParams.get('namespace') || 'default';
-  
+
+  logger.info({ body: req.body }, 'MCP Request Payload');
+
   // Log namespace for debugging (only log tools/call to reduce noise)
   const method = req.body?.method || 'unknown';
   if (method === 'tools/call') {
     const toolName = req.body?.params?.name || 'unknown';
     logger.info({ namespace, method, toolName }, `Tool call: ${toolName} in namespace: ${namespace}`);
   }
-  
+
   // Run the entire request handling in namespace context
   await runInNamespace(namespace, async () => {
     try {
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-      
+
       res.on('close', () => {
         transport.close();
       });
-      
+
       // Use the singleton MCP server instance
       await mcpServer.connect(transport);
       await transport.handleRequest(req, res, req.body);
