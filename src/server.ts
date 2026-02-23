@@ -268,20 +268,24 @@ Input:
     };
   });
 
-  const markTaskAsDoneInputSchema = z.object({ sessionId: z.string().min(1), taskId: z.string().min(1) });
+  const markTaskAsDoneInputSchema = z.object({
+    sessionId: z.string().min(1),
+    taskIds: z.array(z.string().min(1)).min(1)
+  });
   type MarkTaskAsDoneInput = z.infer<typeof markTaskAsDoneInputSchema>;
 
   const markTaskAsDoneDescription = `
-Finds a specific task by its unique taskId within a session and updates its status to 'DONE'.
+Finds specific tasks by their unique taskIds within a session and updates their status to 'DONE'.
 
-The tool will search the entire task hierarchy for the given taskId.
+The tool will search the entire task hierarchy for the given taskIds.
 
 Input:
 - sessionId (string, required): The unique identifier for the user's session where the task exists.
-- taskId (string, required): The unique ID of the task you want to mark as done.
+- taskIds (array of strings, required): An array of unique IDs of tasks you want to mark as done. Provide one or multiple IDs for batch marking.
 `;
   server.tool("mark_task_as_done", markTaskAsDoneDescription, markTaskAsDoneInputSchema.shape, async (params: MarkTaskAsDoneInput) => {
-    const { sessionId, taskId } = params;
+    const { sessionId, taskIds } = params;
+    const idsToMark = taskIds;
 
     // Get namespace from async context
     const namespace = getCurrentNamespace();
@@ -290,20 +294,36 @@ Input:
     const sessionValidation = validateSession(sessionId);
     if (!sessionValidation.isValid) return { content: [{ type: "text", text: `Error: ${sessionValidation.error}` }] };
 
-    if (!validateTaskId(taskId)) {
-      return { content: [{ type: "text", text: `Error: Task ID '${taskId}' has invalid format` }] };
-    }
-
     let sessionTasks = taskStoreCache.getTasks(sessionId);
     if (!sessionTasks) return { content: [{ type: "text", text: `Error: No tasks found for session ${sessionId}` }] };
-    const targetTask = findTaskById(sessionTasks, taskId);
-    if (!targetTask) return { content: [{ type: "text", text: `Error: Task with ID '${taskId}' not found` }] };
-    targetTask.status = 'DONE';
+
+    const markedIds: string[] = [];
+    const notFoundIds: string[] = [];
+
+    for (const id of idsToMark) {
+      if (!validateTaskId(id)) {
+        notFoundIds.push(`${id} (invalid format)`);
+        continue;
+      }
+      const targetTask = findTaskById(sessionTasks, id);
+      if (targetTask) {
+        targetTask.status = 'DONE';
+        markedIds.push(id);
+      } else {
+        notFoundIds.push(id);
+      }
+    }
+
     taskStoreCache.setTasks(sessionId, sessionTasks);
     const treeView = formatTaskTree(sessionTasks);
+
+    let resultMessage = `Successfully marked ${markedIds.length} tasks as DONE.`;
+    if (markedIds.length > 0) resultMessage += `\nMarked IDs: ${markedIds.join(', ')}`;
+    if (notFoundIds.length > 0) resultMessage += `\nFailed to find/mark IDs: ${notFoundIds.join(', ')}`;
+
     return {
       content: [
-        { type: 'text', text: `Successfully marked task ${taskId} as DONE` },
+        { type: 'text', text: resultMessage },
         { type: "text", text: `Complete task hierarchy:\n${treeView}` }
       ]
     };
