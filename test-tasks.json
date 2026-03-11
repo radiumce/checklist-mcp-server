@@ -1,0 +1,28 @@
+[
+  {
+    "taskId": "project",
+    "description": "Start new project phase",
+    "children": [
+      {
+        "taskId": "planning",
+        "description": "Gather requirements and create plan",
+        "children": [
+          { "taskId": "req1", "description": "Backend requirements" },
+          { "taskId": "req2", "description": "Frontend requirements" }
+        ]
+      },
+      {
+        "taskId": "execution",
+        "description": "Write code",
+        "children": [
+          { "taskId": "api", "description": "Develop API endpoints" },
+          { "taskId": "ui", "description": "Develop UI components" }
+        ]
+      }
+    ]
+  },
+  {
+    "taskId": "deployment",
+    "description": "Deploy to production"
+  }
+]

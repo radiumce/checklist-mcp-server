@@ -60,6 +60,18 @@ app.use((req, res, next) => {
 const MCP_ENDPOINT = "/mcp";
 const PORT = process.env.PORT || 8585;
 
+import { namespaceManager } from './utils/namespaceManager.js';
+import { 
+  validateSession, 
+  validatePath, 
+  validateTaskId, 
+  formatTaskTree, 
+  setDefaultStatusRecursively, 
+  updateTasksAtPath, 
+  findTaskById,
+  Task
+} from './server.js';
+
 // POST-only stateless mode - no session management needed
 
 // 添加健康检查端点
@@ -78,6 +90,152 @@ app.get('/', (req: Request, res: Response) => {
     message: 'Checklist MCP Server is running',
     endpoint: MCP_ENDPOINT,
     timestamp: new Date().toISOString()
+  });
+});
+
+// ============================================================================
+// REST API ENDPOINTS - FOR CLI CLIENT
+// ============================================================================
+
+app.get('/api/tasks', (req: Request, res: Response) => {
+  const sessionId = req.query.sessionId as string;
+  const namespace = (req.query.namespace as string) || 'default';
+  
+  if (!sessionId) {
+    res.status(400).json({ error: 'sessionId is required' });
+    return;
+  }
+  
+  const sessionValidation = validateSession(sessionId);
+  if (!sessionValidation.isValid) {
+    res.status(400).json({ error: sessionValidation.error });
+    return;
+  }
+  
+  const { taskStoreCache } = namespaceManager.getCaches(namespace);
+  const sessionTasks = taskStoreCache.getTasks(sessionId);
+  
+  if (!sessionTasks || sessionTasks.length === 0) {
+    res.json({ message: `No tasks found for session ${sessionId}.`, raw: [] });
+    return;
+  }
+  
+  const treeView = formatTaskTree(sessionTasks);
+  res.json({ message: `Tasks for session ${sessionId}:\n${treeView}`, raw: sessionTasks });
+});
+
+app.post('/api/tasks/update', (req: Request, res: Response) => {
+  const namespace = (req.query.namespace as string) || 'default';
+  const { sessionId, path = '/', tasks: inputTasks } = req.body;
+  
+  if (!sessionId || !inputTasks || !Array.isArray(inputTasks)) {
+    res.status(400).json({ error: 'sessionId and a valid tasks array are required in the body' });
+    return;
+  }
+  
+  const sessionValidation = validateSession(sessionId);
+  if (!sessionValidation.isValid) {
+    res.status(400).json({ error: sessionValidation.error });
+    return;
+  }
+  
+  const pathValidation = validatePath(path);
+  if (!pathValidation.isValid) {
+    res.status(400).json({ error: pathValidation.error });
+    return;
+  }
+  
+  const { taskStoreCache } = namespaceManager.getCaches(namespace);
+  const transformedTasks = setDefaultStatusRecursively(inputTasks);
+  
+  // Duplicate check
+  const taskIds = new Set<string>();
+  function findDuplicates(tasks: Task[]): string | null {
+    for (const task of tasks) {
+      if (taskIds.has(task.taskId)) return task.taskId;
+      taskIds.add(task.taskId);
+      if (task.children) {
+        const duplicate = findDuplicates(task.children);
+        if (duplicate) return duplicate;
+      }
+    }
+    return null;
+  }
+  
+  const duplicateId = findDuplicates(transformedTasks);
+  if (duplicateId) {
+     res.status(400).json({ error: `Duplicate task ID '${duplicateId}' found in the request.` });
+     return;
+  }
+  
+  let sessionTasks = taskStoreCache.getTasks(sessionId) || [];
+  let updatedTasks: Task[];
+  try {
+    updatedTasks = updateTasksAtPath(sessionTasks, pathValidation.normalizedPath || path, transformedTasks);
+  } catch (error) {
+    res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    return;
+  }
+  
+  taskStoreCache.setTasks(sessionId, updatedTasks);
+  const treeView = updatedTasks.length > 0 ? formatTaskTree(updatedTasks) : "No tasks";
+  const pathInfo = (path && path !== '/') ? ` at path '${path}'` : '';
+  
+  res.json({
+    message: `Successfully updated ${inputTasks.length} tasks${pathInfo} for session ${sessionId}.\nComplete task hierarchy:\n${treeView}`,
+    raw: updatedTasks
+  });
+});
+
+app.post('/api/tasks/done', (req: Request, res: Response) => {
+  const namespace = (req.query.namespace as string) || 'default';
+  const { sessionId, taskIds } = req.body;
+  
+  if (!sessionId || !taskIds || !Array.isArray(taskIds) || taskIds.length === 0) {
+    res.status(400).json({ error: 'sessionId and a non-empty taskIds array are required in the body' });
+    return;
+  }
+  
+  const sessionValidation = validateSession(sessionId);
+  if (!sessionValidation.isValid) {
+    res.status(400).json({ error: sessionValidation.error });
+    return;
+  }
+  
+  const { taskStoreCache } = namespaceManager.getCaches(namespace);
+  let sessionTasks = taskStoreCache.getTasks(sessionId);
+  if (!sessionTasks) {
+    res.status(404).json({ error: `No tasks found for session ${sessionId}` });
+    return;
+  }
+  
+  const markedIds: string[] = [];
+  const notFoundIds: string[] = [];
+  
+  for (const id of taskIds) {
+    if (!validateTaskId(id)) {
+      notFoundIds.push(`${id} (invalid format)`);
+      continue;
+    }
+    const targetTask = findTaskById(sessionTasks, id);
+    if (targetTask) {
+      targetTask.status = 'DONE';
+      markedIds.push(id);
+    } else {
+      notFoundIds.push(id);
+    }
+  }
+  
+  taskStoreCache.setTasks(sessionId, sessionTasks);
+  const treeView = formatTaskTree(sessionTasks);
+  
+  let resultMessage = `Successfully marked ${markedIds.length} tasks as DONE.`;
+  if (markedIds.length > 0) resultMessage += `\nMarked IDs: ${markedIds.join(', ')}`;
+  if (notFoundIds.length > 0) resultMessage += `\nFailed to find/mark IDs: ${notFoundIds.join(', ')}`;
+  
+  res.json({
+    message: `${resultMessage}\nComplete task hierarchy:\n${treeView}`,
+    raw: sessionTasks
   });
 });
 

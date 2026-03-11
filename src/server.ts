@@ -47,7 +47,7 @@ const inputTaskSchema: z.ZodType<InputTask> = z.lazy(() =>
 );
 
 // This function recursively transforms InputTask[] to Task[], setting default status
-function setDefaultStatusRecursively(tasks: InputTask[]): Task[] {
+export function setDefaultStatusRecursively(tasks: InputTask[]): Task[] {
   return tasks.map(inputTask => {
     const newTask: Task = {
       taskId: inputTask.taskId,
@@ -65,7 +65,7 @@ function setDefaultStatusRecursively(tasks: InputTask[]): Task[] {
 // They will be retrieved in createChecklistServer() based on the namespace parameter
 
 // Validation and Error Handling Functions
-function validateSession(sessionId: string): { isValid: boolean; error?: string } {
+export function validateSession(sessionId: string): { isValid: boolean; error?: string } {
   if (!sessionId || typeof sessionId !== 'string') {
     return { isValid: false, error: 'Session ID must be a non-empty string' };
   }
@@ -79,11 +79,11 @@ function validateSession(sessionId: string): { isValid: boolean; error?: string 
   return { isValid: true };
 }
 
-function validateTaskId(taskId: string): boolean {
+export function validateTaskId(taskId: string): boolean {
   return /^[a-zA-Z0-9._-]+$/.test(taskId);
 }
 
-function validatePath(path: string): { isValid: boolean; normalizedPath?: string; error?: string } {
+export function validatePath(path: string): { isValid: boolean; normalizedPath?: string; error?: string } {
   if (path === null || path === undefined) return { isValid: true, normalizedPath: '/' };
   if (typeof path !== 'string') return { isValid: false, error: 'Path must be a string' };
   if (path.trim() === '') return { isValid: true, normalizedPath: '/' };
@@ -116,7 +116,7 @@ function parsePath(path: string): string[] {
   return normalizedPath.split('/').filter(segment => segment.length > 0);
 }
 
-function updateTasksAtPath(rootTasks: Task[], path: string, newTasks: Task[]): Task[] {
+export function updateTasksAtPath(rootTasks: Task[], path: string, newTasks: Task[]): Task[] {
   const pathSegments = parsePath(path);
   if (pathSegments.length === 0) return [...newTasks];
   let currentLevel = rootTasks;
@@ -137,7 +137,7 @@ function updateTasksAtPath(rootTasks: Task[], path: string, newTasks: Task[]): T
   return rootTasks;
 }
 
-function formatTaskTree(tasks: Task[], indent: string = ""): string {
+export function formatTaskTree(tasks: Task[], indent: string = ""): string {
   return tasks.map((task, index) => {
     const isLast = index === tasks.length - 1;
     const prefix = indent + (isLast ? "└── " : "├── ");
@@ -150,7 +150,7 @@ function formatTaskTree(tasks: Task[], indent: string = ""): string {
   }).join("\n");
 }
 
-function findTaskById(tasks: Task[], taskId: string): Task | null {
+export function findTaskById(tasks: Task[], taskId: string): Task | null {
   for (const task of tasks) {
     if (task.taskId === taskId) return task;
     if (task.children) {
