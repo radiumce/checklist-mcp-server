@@ -104,7 +104,12 @@ async function fetchGet(url: string, errorMessage: string) {
     }
     console.log(data.message);
   } catch (error: any) {
-    console.error(`${errorMessage}: ${error.message}`);
+    if (error.message === 'fetch failed') {
+      console.error(`${errorMessage}: Server unreachable at ${url}`);
+      console.error('Hint: Ensure the Checklist MCP Server is running, or set the correct address using --server <url>.');
+    } else {
+      console.error(`${errorMessage}: ${error.message}`);
+    }
     process.exit(1);
   }
 }
@@ -126,7 +131,12 @@ async function fetchPost(url: string, body: any, errorMessage: string) {
     }
     console.log(data.message);
   } catch (error: any) {
-    console.error(`${errorMessage}: ${error.message}`);
+    if (error.message === 'fetch failed') {
+      console.error(`${errorMessage}: Server unreachable at ${url}`);
+      console.error('Hint: Ensure the Checklist MCP Server is running, or set the correct address using --server <url>.');
+    } else {
+      console.error(`${errorMessage}: ${error.message}`);
+    }
     process.exit(1);
   }
 }
