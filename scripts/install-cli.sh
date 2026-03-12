@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 
-# This script installs the plan-checklist standalone CLI to ~/local/bin
+# This script installs the plan-checklist standalone CLI to ~/.local/bin
 # Usage: curl -fsSL https://raw.githubusercontent.com/chene/checklist-mcp-server/main/scripts/install-cli.sh | bash
 
 set -e
 
 # Define installation variables
-INSTALL_DIR="$HOME/local/bin"
+INSTALL_DIR="$HOME/.local/bin"
 EXECUTABLE_NAME="plan-checklist"
 EXECUTABLE_PATH="$INSTALL_DIR/$EXECUTABLE_NAME"
 
@@ -18,7 +18,7 @@ echo "========================================="
 echo " Installing plan-checklist CLI client..."
 echo "========================================="
 
-# 1. Create ~/local/bin if it doesn't exist
+# 1. Create ~/.local/bin if it doesn't exist
 if [ ! -d "$INSTALL_DIR" ]; then
     echo "Creating directory $INSTALL_DIR..."
     mkdir -p "$INSTALL_DIR"
@@ -46,13 +46,13 @@ fi
 chmod +x "$EXECUTABLE_PATH"
 echo "Successfully installed to $EXECUTABLE_PATH"
 
-# 4. Check if ~/local/bin is in PATH
+# 4. Check if ~/.local/bin is in PATH
 if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
     echo ""
     echo "⚠️  WARNING: $INSTALL_DIR is not in your PATH."
     echo "To use the 'plan-checklist' command globally, add the following line to your shell profile (~/.bashrc, ~/.zshrc, etc.):"
     echo ""
-    echo '    export PATH="$HOME/local/bin:$PATH"'
+    echo '    export PATH="$HOME/.local/bin:$PATH"'
     echo ""
     echo "Then restart your terminal or run: source ~/.bashrc (or ~/.zshrc)"
 else
