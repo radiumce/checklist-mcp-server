@@ -24,22 +24,31 @@ if [ ! -d "$INSTALL_DIR" ]; then
     mkdir -p "$INSTALL_DIR"
 fi
 
-# 2. Download the standalone bundle
-echo "Downloading standalone executable from $DOWNLOAD_URL..."
-if command -v curl >/dev/null 2>&1; then
-    # We use -f to fail silently on server errors, -s for silent mode, -L for location redirects
-    if ! curl -fsSL "$DOWNLOAD_URL" -o "$EXECUTABLE_PATH"; then
-        echo "Error: Failed to download the executable. Make sure the 'dist/plan-checklist.js' is pushed to the repository main branch."
+if [ "$1" = "--local" ]; then
+    echo "Installing from local dist/plan-checklist.cjs..."
+    if [ ! -f "dist/plan-checklist.cjs" ]; then
+        echo "Error: dist/plan-checklist.cjs not found. Please run 'npm run build:cli' first."
         exit 1
     fi
-elif command -v wget >/dev/null 2>&1; then
-    if ! wget -qO "$EXECUTABLE_PATH" "$DOWNLOAD_URL"; then
-        echo "Error: Failed to download the executable. Make sure the 'dist/plan-checklist.js' is pushed to the repository main branch."
-        exit 1
-    fi
+    cp dist/plan-checklist.cjs "$EXECUTABLE_PATH"
 else
-    echo "Error: Neither curl nor wget is installed."
-    exit 1
+    # 2. Download the standalone bundle
+    echo "Downloading standalone executable from $DOWNLOAD_URL..."
+    if command -v curl >/dev/null 2>&1; then
+        # We use -f to fail silently on server errors, -s for silent mode, -L for location redirects
+        if ! curl -fsSL "$DOWNLOAD_URL" -o "$EXECUTABLE_PATH"; then
+            echo "Error: Failed to download the executable. Make sure the 'dist/plan-checklist.cjs' is pushed to the repository main branch."
+            exit 1
+        fi
+    elif command -v wget >/dev/null 2>&1; then
+        if ! wget -qO "$EXECUTABLE_PATH" "$DOWNLOAD_URL"; then
+            echo "Error: Failed to download the executable. Make sure the 'dist/plan-checklist.cjs' is pushed to the repository main branch."
+            exit 1
+        fi
+    else
+        echo "Error: Neither curl nor wget is installed."
+        exit 1
+    fi
 fi
 
 # 3. Apply executable permissions
