@@ -24,7 +24,8 @@ if [ ! -d "$INSTALL_DIR" ]; then
     mkdir -p "$INSTALL_DIR"
 fi
 
-if [ "$1" = "--local" ]; then
+# 2. Download or copy the standalone executable
+if [ "$1" = "--local" ] || [ -f "./dist/plan-checklist.cjs" ]; then
     echo "Installing from local dist/plan-checklist.cjs..."
     if [ ! -f "dist/plan-checklist.cjs" ]; then
         echo "Error: dist/plan-checklist.cjs not found. Please run 'npm run build:cli' first."
@@ -32,7 +33,6 @@ if [ "$1" = "--local" ]; then
     fi
     cp dist/plan-checklist.cjs "$EXECUTABLE_PATH"
 else
-    # 2. Download the standalone bundle
     echo "Downloading standalone executable from $DOWNLOAD_URL..."
     if command -v curl >/dev/null 2>&1; then
         # We use -f to fail silently on server errors, -s for silent mode, -L for location redirects
