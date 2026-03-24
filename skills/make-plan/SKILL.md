@@ -6,7 +6,7 @@ version: "2.0.0"
 
 # Prerequisites & Server Health Check
 - This skill heavily relies on the `plan-checklist` CLI tool.
-- **Installation**: If the `plan-checklist` CLI client does not exist, use the following command to install it: `curl -fsSL https://raw.githubusercontent.com/chene/checklist-mcp-server/main/scripts/install-cli.sh | bash`
+- **Installation**: If the `plan-checklist` CLI client does not exist, use the following command to install it: `curl -fsSL https://raw.githubusercontent.com/radiumce/checklist-mcp-server/main/scripts/install-cli.sh | bash`
 - **Fallback Rule**: If any `plan-checklist` CLI command fails due to a connection error, you should run `plan-checklist` (without arguments) to verify the server health and connection status. If the server is unreachable, you MUST explicitly ask the user to provide an available server URL. Once provided, configure the CLI by appending `--server <url>` to your next command (which will automatically save it to global configuration for future use).
 
 # CLI Command Reference
