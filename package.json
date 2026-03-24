@@ -9,8 +9,8 @@
     "checklist-mcp-server-http": "dist/http-server.js"
   },
   "scripts": {
-    "build": "tsc",
-    "build:cli": "esbuild src/cli-plan-checklist.ts --bundle --platform=node --target=node18 --format=cjs --outfile=dist/plan-checklist.cjs",
+    "build": "tsc && npm run build:cli",
+    "build:cli": "esbuild src/cli-plan-checklist.ts --bundle --platform=node --target=node18 --format=cjs --outfile=bin/plan-checklist.cjs",
     "start:http": "npm run build && node dist/http-server.js",
     "dev:http": "ts-node src/http-server.ts",
     "test": "npm run build && npx ts-node test/all-tests.ts",
@@ -59,12 +59,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/chene/checklist-mcp-server.git"
+    "url": "https://github.com/radiumce/checklist-mcp-server.git"
   },
   "bugs": {
-    "url": "https://github.com/chene/checklist-mcp-server/issues"
+    "url": "https://github.com/radiumce/checklist-mcp-server/issues"
   },
-  "homepage": "https://github.com/chene/checklist-mcp-server#readme",
+  "homepage": "https://github.com/radiumce/checklist-mcp-server#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.1",
     "commander": "^14.0.3",
